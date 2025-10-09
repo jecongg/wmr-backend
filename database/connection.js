@@ -6,7 +6,7 @@ const {
     password,
     host,
     dialect,
-} = require("../config/db");
+} = require("../config/config.js").development;
 
 
 const sequelize = new Sequelize(database, username, password, {

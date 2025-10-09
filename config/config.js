@@ -6,8 +6,8 @@ module.exports = {
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     host: process.env.DB_HOST,
-    dialect: 'mysql',
-    port: 3306,
+    dialect: process.env.DB_DIALECT, // <-- Baca dari .env
+    port: process.env.DB_PORT,       // <-- Baca dari .env
     logging: console.log
   },
   test: {
@@ -15,8 +15,8 @@ module.exports = {
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME + '_test',
     host: process.env.DB_HOST,
-    dialect: 'mysql',
-    port: 3306,
+    dialect: process.env.DB_DIALECT, // <-- Baca dari .env
+    port: process.env.DB_PORT,       // <-- Baca dari .env
     logging: false
   },
   production: {
@@ -24,8 +24,8 @@ module.exports = {
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     host: process.env.DB_HOST,
-    dialect: 'mysql',
-    port: 3306,
+    dialect: process.env.DB_DIALECT, // <-- Baca dari .env
+    port: process.env.DB_PORT,       // <-- Baca dari .env
     logging: false
   }
 };
