@@ -5,8 +5,11 @@ const cors = require('cors');
 
 const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
+const connectDB = require('./config/database');
 
 const app = express();
+
+connectDB();
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
