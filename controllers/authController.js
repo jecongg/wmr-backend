@@ -8,7 +8,12 @@ exports.completeRegistration = async (req, res) => {
     const { registrationToken, authProvider, password, firebaseUid } = req.body;
 
     try {
+        // 1. Verifikasi token JWT dari email (Tidak ada perubahan di sini)
         const decoded = jwt.verify(registrationToken, process.env.JWT_SECRET);
+        
+        // 2. [PERUBAHAN] Cari guru menggunakan Mongoose
+        // Sequelize: Teacher.findByPk(decoded.teacherId)
+        // Mongoose: Teacher.findById(decoded.teacherId)
         const teacher = await Teacher.findById(decoded.teacherId);
 
         if (!teacher || teacher.status !== "invited") {
@@ -17,10 +22,9 @@ exports.completeRegistration = async (req, res) => {
 
         let finalUid = firebaseUid;
 
-        // Logika untuk membuat atau menautkan pengguna di Firebase Authentication
+        // 3. Logika interaksi dengan Firebase (Tidak ada perubahan di sini, ini sudah benar)
         if (authProvider === "email") {
             try {
-                // Coba buat pengguna baru di Firebase
                 const userRecord = await firebaseAdmin.auth().createUser({
                     email: teacher.email,
                     password: password,
@@ -28,20 +32,25 @@ exports.completeRegistration = async (req, res) => {
                 });
                 finalUid = userRecord.uid;
             } catch (firebaseError) {
-                // Jika email sudah ada di Firebase, cari dan tautkan
                 if (firebaseError.code === "auth/email-already-exists") {
-                    const existingUser = await firebaseAdmin.auth().getUserByEmail(teacher.email);
-                    const teacherWithThisUid = await Teacher.findOne({ authUid: existingUser.uid });
+                    try {
+                        const existingUser = await firebaseAdmin.auth().getUserByEmail(teacher.email);
+                        const teacherWithThisUid = await Teacher.findOne({ authUid: existingUser.uid });
 
-                    // Pastikan UID Firebase ini tidak terhubung ke guru LAIN
-                    if (teacherWithThisUid && teacherWithThisUid._id.toString() !== teacher._id.toString()) {
-                        return res.status(400).json({ message: "Akun ini sudah terhubung dengan profil guru lain." });
+                        // [PERUBAHAN KECIL] Cara membandingkan ID di Mongoose
+                        // ID di Mongoose adalah objek, jadi kita konversi ke string untuk perbandingan aman
+                        if (teacherWithThisUid && teacherWithThisUid._id.toString() !== teacher._id.toString()) {
+                            return res.status(400).json({ message: "Akun ini sudah terhubung dengan profil guru lain." });
+                        }
+
+                        finalUid = existingUser.uid;
+                        await firebaseAdmin.auth().updateUser(finalUid, { password: password });
+                    } catch (lookupError) {
+                        console.error("Gagal mencari pengguna yang sudah ada di Firebase:", lookupError);
+                        throw new Error("Gagal memproses pendaftaran dengan email yang sudah ada.");
                     }
-
-                    finalUid = existingUser.uid;
-                    await firebaseAdmin.auth().updateUser(finalUid, { password: password });
                 } else {
-                    throw firebaseError; // Lempar error Firebase lainnya
+                    throw firebaseError;
                 }
             }
         }
@@ -50,15 +59,18 @@ exports.completeRegistration = async (req, res) => {
             return res.status(400).json({ message: "UID pengguna tidak dapat ditentukan." });
         }
 
-        // Update record guru di MongoDB
+        // 4. [PERUBAHAN] Update dokumen guru di MongoDB menggunakan Mongoose
+        // Sequelize: await teacher.update({ status: 'active', ... })
+        // Mongoose: Ubah properti lalu panggil .save()
         teacher.status = "active";
         teacher.authProvider = authProvider;
         teacher.authUid = finalUid;
-        await teacher.save();
+        await teacher.save(); // Simpan perubahan ke database
 
         res.status(200).json({ message: "Pendaftaran berhasil! Anda sekarang bisa login." });
 
     } catch (error) {
+        // 5. Logika error handling (Tidak ada perubahan di sini, ini sudah benar)
         if (error instanceof jwt.TokenExpiredError) {
             return res.status(400).json({ message: "Tautan pendaftaran sudah kedaluwarsa." });
         }
