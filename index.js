@@ -15,6 +15,7 @@ app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/teachers', teacherRoutes);
 
 app.get('/', (req, res) => {
   res.send('API Server Wisma Musik Rhapsodi is running!');
