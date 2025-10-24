@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const Teacher = require('../models/teacher.model'); // Path ke model Mongoose Teacher
+const Student = require('../models/student.model');
 
 /**
  * @desc Mengundang guru baru melalui email
@@ -66,3 +67,64 @@ exports.inviteTeacher = async (req, res) => {
     res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
   }
 };
+
+exports.listStudents = async(req,res) => {
+    try{
+      const fetchStudent = await Student.find();
+      // console.log(fetchStudent);
+      return res.status(200).json( fetchStudent);
+    }catch(error){
+      return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
+    }
+}
+
+exports.addStudent = async(req,res) => {
+  try{
+
+    const data = req.body;
+    const newStudent = {
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null
+    }
+    const fetch = await Student.create(newStudent);
+    
+    return res.status(201).json({message: 'Murid berhasil ditambahkan.', student: fetch});
+  }catch(error){
+    return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
+  }
+}
+
+exports.deleteStudent = async(req,res) => {
+  try{
+    const id = req.params.id;
+    const findStudent = await Student.findById(id);
+    if(!findStudent){
+      return res.status(400).json({message: 'Data murid tidak ditemukan.'});
+    }
+
+    await Student.updateOne({_id: id}, {deletedAt: new Date()});
+  }catch(error){
+    return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
+  }
+}
+
+exports.updateStudent = async(req,res) => {
+  try{
+    const id = req.params.id;
+    const findStudent = await Student.findById(id);
+    if(!findStudent){
+      return res.status(400).json({message: 'Data murid tidak ditemukan.'});
+    }
+    await Student.updateOne({
+      _id: id
+    }, {
+      ...req.body
+    })
+
+    return res.status(200).json({message: 'Data murid berhasil diperbarui.'});
+  }catch(error){
+    return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
+  }
+}

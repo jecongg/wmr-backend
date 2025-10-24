@@ -84,7 +84,7 @@ exports.completeRegistration = async (req, res) => {
 
 exports.handleGoogleLogin = async (req, res) => {
     const { uid, email } = req.body;
-
+    console.log(uid);
     if (!uid || !email) {
         return res.status(400).json({ message: "UID dan Email diperlukan." });
     }
@@ -124,7 +124,6 @@ exports.handleGoogleLogin = async (req, res) => {
             }
         }
         
-        // Tahap 3: Jika tidak ditemukan sama sekali
         return res.status(404).json({
             success: false,
             code: "email-not-registered",
