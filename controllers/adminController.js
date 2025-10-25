@@ -80,6 +80,7 @@ exports.listStudents = async(req,res) => {
 
 exports.addStudent = async(req,res) => {
   try{
+    const { email, name } = req.body;
 
     const data = req.body;
     const newStudent = {
@@ -88,8 +89,37 @@ exports.addStudent = async(req,res) => {
       updatedAt: new Date(),
       deletedAt: null
     }
+
+    const registrationToken = jwt.sign(
+      { teacherId: newStudent._id, email: newStudent.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const registrationLink = `${process.env.FRONTEND_URL}/register-student?token=${registrationToken}`;
+
+    await transporter.sendMail({
+      from: '"Wisma Musik Rhapsodi" <no-reply@wismamusik.com>',
+      to: email,
+      subject: 'Undangan Bergabung sebagai Murid',
+      html: `
+        <h3>Halo, ${name}!</h3>
+        <p>Anda telah diundang untuk menjadi guru di Wisma Musik Rhapsodi. Silakan selesaikan pendaftaran Anda dengan mengklik tautan di bawah ini.</p>
+        <a href="${registrationLink}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Selesaikan Pendaftaran</a>
+        <p>Tautan ini hanya berlaku selama 24 jam.</p>
+        <p>Jika Anda tidak merasa diundang, mohon abaikan email ini.</p>
+      `,
+    });
     const fetch = await Student.create(newStudent);
-    
+
     return res.status(201).json({message: 'Murid berhasil ditambahkan.', student: fetch});
   }catch(error){
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
