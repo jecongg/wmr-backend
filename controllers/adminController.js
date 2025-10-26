@@ -111,6 +111,20 @@ exports.listStudents = async(req,res) => {
     }
 }
 
+exports.deleteTeacher = async(req,res) => {
+  try{
+    const id = req.params.id;
+    const findTeacher = await Teacher.findById(id);
+    if(!findTeacher){
+      return res.status(400).json({message: 'Data guru tidak ditemukan.'});
+    }
+    await Teacher.updateOne({_id: id}, {deletedAt: new Date()});
+    return res.status(200).json({message: 'Data guru berhasil dihapus.'});
+  }catch(error){
+    return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
+  }
+}
+
 exports.addStudent = async(req,res) => {
   try{
     const { email, name } = req.body;
