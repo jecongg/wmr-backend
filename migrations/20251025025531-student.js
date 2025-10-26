@@ -7,6 +7,7 @@ module.exports = {
       "email": "student@example.com",
       "name": "STUDENT EXAMPLE",
       "age": 19,
+      "gender": "male",
       "phone_number": "081234567890",
       "address": "Jl. Example 1",
       "parent_name": "Parent Example",

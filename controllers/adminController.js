@@ -8,29 +8,64 @@ const Student = require('../models/student.model');
  * @route POST /api/admin/invite-teacher
  * @access Private/Admin
  */
+/**
+ * @desc Mengambil semua data guru
+ * @route GET /api/admin/list-teachers
+ * @access Private/Admin
+ */
+exports.listTeachers = async (req, res) => {
+  try {
+    const teachers = await Teacher.find();
+    return res.status(200).json(teachers);
+  } catch (error) {
+    console.error('Gagal mengambil data guru:', error);
+    return res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+  }
+};
+
+/**
+ * @desc Mengundang guru baru melalui email
+ * @route POST /api/admin/teachers
+ * @access Private/Admin
+ */
+
+exports.updateTeacher = async (req, res) => {
+  try{
+    const id = req.params.id;
+    const findTeacher = await Teacher.findById(id);
+    if(!findTeacher){
+      return res.status(400).json({message: 'Data guru tidak ditemukan.'});
+    }
+    await Teacher.updateOne({_id: id}, {
+      ...req.body
+    })
+    return res.status(200).json({message: 'Data guru berhasil diperbarui.'});
+  }catch(error){
+    return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
+  }
+}
 exports.inviteTeacher = async (req, res) => {
   const { email, name } = req.body;
 
+  const data = req.body;
+
   try {
-    // 1. Cek apakah guru dengan email tersebut sudah ada
     const existingTeacher = await Teacher.findOne({ email });
     if (existingTeacher) {
       return res.status(400).json({ message: 'Guru dengan email ini sudah ada.' });
     }
 
-    // 2. Buat record guru baru dengan status 'invited'
-    // req.body bisa berisi field lain seperti instrument, experience, dll.
+
+    console.log(data);
     const newTeacher = await Teacher.create({ ...req.body, status: 'invited' });
 
-    // 3. Buat token registrasi yang berlaku 24 jam
-    // Di Mongoose, primary key adalah _id
+
     const registrationToken = jwt.sign(
       { teacherId: newTeacher._id, email: newTeacher.email },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    // 4. Konfigurasi Nodemailer untuk mengirim email
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -41,7 +76,6 @@ exports.inviteTeacher = async (req, res) => {
 
     const registrationLink = `${process.env.FRONTEND_URL}/register-teacher?token=${registrationToken}`;
 
-    // 5. Kirim email undangan
     await transporter.sendMail({
       from: '"Wisma Musik Rhapsodi" <no-reply@wismamusik.com>',
       to: email,
@@ -55,8 +89,7 @@ exports.inviteTeacher = async (req, res) => {
       `,
     });
 
-    // 6. Kirim respons sukses
-    // Berkat transform di model, 'newTeacher' akan otomatis di-serialize dengan 'id'
+
     res.status(201).json({ 
         message: 'Undangan telah berhasil dikirim.', 
         teacher: newTeacher 

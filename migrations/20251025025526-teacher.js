@@ -9,8 +9,6 @@ module.exports = {
       "age": 40,
       "phone_number": "081234567890",
       "address": "Jl. Example 1",
-      "parent_name": "Parent Example",
-      "parent_phone": "08111222333",
       "status": "active",
       "authProvider": null
     });
