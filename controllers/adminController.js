@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const Teacher = require('../models/teacher.model'); // Path ke model Mongoose Teacher
 const Student = require('../models/student.model');
+const { uploadToGCS, deleteFromGCS } = require('../utils/uploadToGCS');
 
 /**
  * @desc Mengundang guru baru melalui email
@@ -54,12 +55,7 @@ exports.inviteTeacher = async (req, res) => {
     if (existingTeacher) {
       return res.status(400).json({ message: 'Guru dengan email ini sudah ada.' });
     }
-
-
-    console.log(data);
     const newTeacher = await Teacher.create({ ...req.body, status: 'invited' });
-
-
     const registrationToken = jwt.sign(
       { teacherId: newTeacher._id, email: newTeacher.email },
       process.env.JWT_SECRET,
@@ -205,3 +201,40 @@ exports.updateStudent = async(req,res) => {
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
   }
 }
+
+
+exports.uploadTeacherPhoto = async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const teacher = await Teacher.findById(id);
+    if (!teacher) {
+      return res.status(404).json({ message: 'Data guru tidak ditemukan.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'File foto tidak ditemukan.' });
+    }
+
+    if (teacher.photo) {
+      await deleteFromGCS(teacher.photo);
+    }
+
+    const photoUrl = await uploadToGCS(req.file, 'teachers', teacher.name);
+    await Teacher.updateOne(
+      { _id: id },
+      { photo: photoUrl }
+    );
+
+    return res.status(200).json({
+      message: 'Foto profil guru berhasil diupload.',
+      photoUrl: photoUrl,
+    });
+  } catch (error) {
+    console.error('Error uploading teacher photo:', error);
+    return res.status(500).json({
+      message: 'Terjadi kesalahan pada server.',
+      error: error.message,
+    });
+  }
+};
