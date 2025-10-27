@@ -13,7 +13,15 @@ const studentSchema = new mongoose.Schema({
     lowercase: true,
     match: [/.+\@.+\..+/, 'Please fill a valid email address']
   },
-  phone: {
+  phone_number: {
+    type: String,
+    default: null
+  },
+  age: {
+    type: Number,
+    required: true,
+  },
+  address: {
     type: String,
     default: null
   },
@@ -26,19 +34,31 @@ const studentSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  parentName: {
+  parent_name: {
     type: String,
     default: null
   },
-  parentPhone: {
+  parent_phone: {
     type: String,
     default: null
   },
   status: {
     type: String,
     required: true,
-    enum: ['active', 'inactive'], // Sebaiknya gunakan enum untuk status
+    enum: ['active', 'inactive'],
     default: 'active'
+  },
+  deleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: {
+    type: Date,
+    default: null
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true,

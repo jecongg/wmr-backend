@@ -17,13 +17,17 @@ const teacherSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
-  instrument: {
-    type: String,
-    required: true,
+  age:{
+    type: Number,
+    default: null,
   },
-  experience: {
+  gender:{
     type: String,
-    required: true,
+    default: null,
+  },
+  address:{
+    type: String,
+    default: null,
   },
   bio: {
     type: String,
@@ -36,10 +40,6 @@ const teacherSchema = new mongoose.Schema({
   hourlyRate: {
     type: Number,
     default: 0,
-  },
-  availability: {
-    type: mongoose.Schema.Types.Mixed, // Fleksibel untuk JSON
-    default: null,
   },
   status: {
     type: String,
