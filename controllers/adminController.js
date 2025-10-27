@@ -119,16 +119,25 @@ exports.addStudent = async(req,res) => {
   try{
     const { email, name } = req.body;
 
+    // Cek duplikat email
+    const existingStudent = await Student.findOne({ email, deletedAt: null });
+    if (existingStudent) {
+      return res.status(400).json({ message: 'Murid dengan email ini sudah ada.' });
+    }
+
     const data = req.body;
     const newStudent = {
       ...data,
+      status: 'invited', // Set status awal
       createdAt: new Date(),
       updatedAt: new Date(),
       deletedAt: null
     }
 
+    const createdStudent = await Student.create(newStudent);
+
     const registrationToken = jwt.sign(
-      { teacherId: newStudent._id, email: newStudent.email },
+      { studentId: createdStudent._id, email: createdStudent.email },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -155,10 +164,10 @@ exports.addStudent = async(req,res) => {
         <p>Jika Anda tidak merasa diundang, mohon abaikan email ini.</p>
       `,
     });
-    const fetch = await Student.create(newStudent);
 
-    return res.status(201).json({message: 'Murid berhasil ditambahkan.', student: fetch});
+    return res.status(201).json({message: 'Murid berhasil ditambahkan.', student: createdStudent});
   }catch(error){
+    console.error('Error adding student:', error); // Tambahkan log
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
   }
 }
@@ -186,21 +195,26 @@ exports.updateStudent = async(req,res) => {
     if(!findStudent){
       return res.status(400).json({message: 'Data murid tidak ditemukan.'});
     }
-    if(req.body.photo !== findStudent.photo){
-      if(findStudent.photo){
+    
+    if (req.body.photo === '' && findStudent.photo) {
+      try {
         await deleteFromGCS(findStudent.photo);
+      } catch (gcsError) {
+        console.error('Gagal menghapus foto lama dari GCS:', gcsError);
+        // Jangan hentikan update, mungkin file sudah tidak ada
       }
-      const photoUrl = await uploadToGCS(req.file, 'students', findStudent.name);
-      req.body.photo = photoUrl;
     }
+    
     await Student.updateOne({
       _id: id
     }, {
-      ...req.body
+      ...req.body,
+      updatedAt: new Date() // Selalu perbarui timestamp
     })
 
     return res.status(200).json({message: 'Data murid berhasil diperbarui.'});
   }catch(error){
+    console.error('Error updating student:', error); // Tambahkan log
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
   }
 }
