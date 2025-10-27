@@ -15,5 +15,6 @@ router.get('/list-students', adminController.listStudents);
 router.post('/students', adminController.addStudent);
 router.put('/students/:id', adminController.updateStudent);
 router.delete('/students/:id', adminController.deleteStudent);
+router.post('/students/:id/upload-photo', upload.single('photo'), adminController.uploadStudentPhoto);
 
 module.exports = router;

@@ -4,16 +4,7 @@ const Teacher = require('../models/teacher.model'); // Path ke model Mongoose Te
 const Student = require('../models/student.model');
 const { uploadToGCS, deleteFromGCS } = require('../utils/uploadToGCS');
 
-/**
- * @desc Mengundang guru baru melalui email
- * @route POST /api/admin/invite-teacher
- * @access Private/Admin
- */
-/**
- * @desc Mengambil semua data guru
- * @route GET /api/admin/list-teachers
- * @access Private/Admin
- */
+
 exports.listTeachers = async (req, res) => {
   try {
     const teachers = await Teacher.find();
@@ -24,11 +15,6 @@ exports.listTeachers = async (req, res) => {
   }
 };
 
-/**
- * @desc Mengundang guru baru melalui email
- * @route POST /api/admin/teachers
- * @access Private/Admin
- */
 
 exports.updateTeacher = async (req, res) => {
   try{
@@ -114,6 +100,14 @@ exports.deleteTeacher = async(req,res) => {
     if(!findTeacher){
       return res.status(400).json({message: 'Data guru tidak ditemukan.'});
     }
+    const selectedTeacher = await Teacher.findOne({_id: id})
+
+    const photoUrl = selectedTeacher.photo;
+
+    if(photoUrl){
+      await deleteFromGCS(photoUrl);
+    }
+    // await Teacher.deleteOne({_id: id});
     await Teacher.updateOne({_id: id}, {deletedAt: new Date()});
     return res.status(200).json({message: 'Data guru berhasil dihapus.'});
   }catch(error){
@@ -178,6 +172,8 @@ exports.deleteStudent = async(req,res) => {
     }
 
     await Student.updateOne({_id: id}, {deletedAt: new Date()});
+
+    return res.status(200).json({message: 'Data murid berhasil dihapus.'});
   }catch(error){
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
   }
@@ -189,6 +185,13 @@ exports.updateStudent = async(req,res) => {
     const findStudent = await Student.findById(id);
     if(!findStudent){
       return res.status(400).json({message: 'Data murid tidak ditemukan.'});
+    }
+    if(req.body.photo !== findStudent.photo){
+      if(findStudent.photo){
+        await deleteFromGCS(findStudent.photo);
+      }
+      const photoUrl = await uploadToGCS(req.file, 'students', findStudent.name);
+      req.body.photo = photoUrl;
     }
     await Student.updateOne({
       _id: id
@@ -238,3 +241,24 @@ exports.uploadTeacherPhoto = async (req, res) => {
     });
   }
 };
+
+exports.uploadStudentPhoto = async (req, res) => {
+  try{
+    const id = req.params.id;
+    const student = await Student.findById(id);
+    if(!student){
+      return res.status(400).json({message: 'Data murid tidak ditemukan.'});
+    }
+    if(!req.file){
+      return res.status(400).json({message: 'File foto tidak ditemukan.'});
+    }
+    if(student.photo){
+      await deleteFromGCS(student.photo);
+    }
+    const photoUrl = await uploadToGCS(req.file, 'students', student.name);
+    await Student.updateOne({_id: id}, {photo: photoUrl});
+    return res.status(200).json({message: 'Foto profil murid berhasil diupload.', photoUrl: photoUrl});
+  }catch(error){
+    return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
+  }
+}
