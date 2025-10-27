@@ -1,7 +1,7 @@
 const multer = require('multer');
 const { Storage } = require('@google-cloud/storage');
 const path = require('path');
-const credentialGCS = require('../credentialGCS.json');
+const credentialGCS = require('../config/credentialGCS.json');
 
 const storage = new Storage({
   credentials: credentialGCS,
