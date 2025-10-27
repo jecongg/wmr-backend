@@ -155,7 +155,7 @@ exports.addStudent = async(req,res) => {
       subject: 'Undangan Bergabung sebagai Murid',
       html: `
         <h3>Halo, ${name}!</h3>
-        <p>Anda telah diundang untuk menjadi guru di Wisma Musik Rhapsodi. Silakan selesaikan pendaftaran Anda dengan mengklik tautan di bawah ini.</p>
+        <p>Anda telah diundang untuk menjadi murid di Wisma Musik Rhapsodi. Silakan selesaikan pendaftaran Anda dengan mengklik tautan di bawah ini.</p>
         <a href="${registrationLink}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Selesaikan Pendaftaran</a>
         <p>Tautan ini hanya berlaku selama 24 jam.</p>
         <p>Jika Anda tidak merasa diundang, mohon abaikan email ini.</p>

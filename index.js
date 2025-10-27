@@ -9,7 +9,7 @@ const announcementRoutes = require('./routes/announcementRoutes');
 const connectDB = require('./config/database');
 
 const app = express();
-const credentialGCS = require('./credentialGCS.json');
+const credentialGCS = require('./config/credentialGCS.json');
 const { Storage } = require('@google-cloud/storage');
 const storage = new Storage({
   credentials: credentialGCS,
