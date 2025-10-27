@@ -182,7 +182,9 @@ exports.deleteStudent = async(req,res) => {
 exports.updateStudent = async(req,res) => {
   try{
     const id = req.params.id;
+    // console.log(req.body);
     const findStudent = await Student.findById(id);
+    // console.log('findstudent',findStudent);
     if(!findStudent){
       return res.status(400).json({message: 'Data murid tidak ditemukan.'});
     }
@@ -190,9 +192,12 @@ exports.updateStudent = async(req,res) => {
       if(findStudent.photo){
         await deleteFromGCS(findStudent.photo);
       }
-      const photoUrl = await uploadToGCS(req.file, 'students', findStudent.name);
-      req.body.photo = photoUrl;
+      if(req.body.photo){
+        const photoUrl = await uploadToGCS(req.file, 'students', findStudent.name);
+        req.body.photo = photoUrl;
+      }
     }
+    // console.log('reqbody',req.body);
     await Student.updateOne({
       _id: id
     }, {

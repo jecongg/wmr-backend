@@ -87,7 +87,7 @@ const deleteFromGCS = async (fileUrl) => {
     if (!fileName) return false;
 
     await bucket.file(fileName).delete();
-    console.log(`File ${fileName} berhasil dihapus dari GCS`);
+    // console.log(`File ${fileName} berhasil dihapus dari GCS`);
     return true;
   } catch (error) {
     console.error('Error deleting from GCS:', error);
