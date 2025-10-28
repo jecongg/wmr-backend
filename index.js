@@ -7,6 +7,9 @@ const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
+const lessonRecordRoutes = require('./routes/lessonRecordRoutes');
+const moduleRoutes = require('./routes/moduleRoutes');
+const rescheduleRoutes = require('./routes/rescheduleRoutes');
 const connectDB = require('./config/database');
 
 const app = express();
@@ -26,6 +29,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/records', lessonRecordRoutes); // Rute baru
+app.use('/api/modules', moduleRoutes); // Rute baru
+app.use('/api/reschedule', rescheduleRoutes); // Rute baru
 
 app.get('/', (req, res) => {
   res.send('API Server Wisma Musik Rhapsodi is running!');
