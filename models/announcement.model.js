@@ -1,29 +1,16 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-const announcementSchema = new mongoose.Schema(
-    {
-        content: {
-            type: String,
-            required: true,
-        },
-    },
-    {
-        timestamps: true,
-        toJSON: {
-            virtuals: true, 
-            transform: function (doc, ret) {
-                delete ret._id; // Hapus _id
-                delete ret.__v; // Hapus __v
-            },
-        },
-        toObject: {
-            virtuals: true, // Sertakan properti virtual saat diubah menjadi objek
-            transform: function (doc, ret) {
-                delete ret._id; // Hapus _id
-                delete ret.__v; // Hapus __v
-            },
-        },
-    }
-);
+const announcementSchema = new Schema({
+    title: { type: String, required: true },
+    content: { type: String, required: true },
+    // Dibuat oleh Admin atau Guru
+    createdBy: { type: Schema.Types.ObjectId, required: true, refPath: 'createdByType' },
+    createdByType: { type: String, required: true, enum: ['Admin', 'Teacher'] },
+}, { 
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
 
-module.exports = mongoose.model("Announcement", announcementSchema);
+module.exports = mongoose.model('Announcement', announcementSchema);
