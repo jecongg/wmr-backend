@@ -4,16 +4,7 @@ const Teacher = require('../models/teacher.model'); // Path ke model Mongoose Te
 const Student = require('../models/student.model');
 const { uploadToGCS, deleteFromGCS } = require('../utils/uploadToGCS');
 
-/**
- * @desc Mengundang guru baru melalui email
- * @route POST /api/admin/invite-teacher
- * @access Private/Admin
- */
-/**
- * @desc Mengambil semua data guru
- * @route GET /api/admin/list-teachers
- * @access Private/Admin
- */
+
 exports.listTeachers = async (req, res) => {
   try {
     const teachers = await Teacher.find();
@@ -24,11 +15,6 @@ exports.listTeachers = async (req, res) => {
   }
 };
 
-/**
- * @desc Mengundang guru baru melalui email
- * @route POST /api/admin/teachers
- * @access Private/Admin
- */
 
 exports.updateTeacher = async (req, res) => {
   try{
@@ -114,6 +100,14 @@ exports.deleteTeacher = async(req,res) => {
     if(!findTeacher){
       return res.status(400).json({message: 'Data guru tidak ditemukan.'});
     }
+    const selectedTeacher = await Teacher.findOne({_id: id})
+
+    const photoUrl = selectedTeacher.photo;
+
+    if(photoUrl){
+      await deleteFromGCS(photoUrl);
+    }
+    // await Teacher.deleteOne({_id: id});
     await Teacher.updateOne({_id: id}, {deletedAt: new Date()});
     return res.status(200).json({message: 'Data guru berhasil dihapus.'});
   }catch(error){
@@ -125,16 +119,25 @@ exports.addStudent = async(req,res) => {
   try{
     const { email, name } = req.body;
 
+    // Cek duplikat email
+    const existingStudent = await Student.findOne({ email, deletedAt: null });
+    if (existingStudent) {
+      return res.status(400).json({ message: 'Murid dengan email ini sudah ada.' });
+    }
+
     const data = req.body;
     const newStudent = {
       ...data,
+      status: 'invited', // Set status awal
       createdAt: new Date(),
       updatedAt: new Date(),
       deletedAt: null
     }
 
+    const createdStudent = await Student.create(newStudent);
+
     const registrationToken = jwt.sign(
-      { teacherId: newStudent._id, email: newStudent.email },
+      { studentId: createdStudent._id, email: createdStudent.email },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -155,16 +158,16 @@ exports.addStudent = async(req,res) => {
       subject: 'Undangan Bergabung sebagai Murid',
       html: `
         <h3>Halo, ${name}!</h3>
-        <p>Anda telah diundang untuk menjadi guru di Wisma Musik Rhapsodi. Silakan selesaikan pendaftaran Anda dengan mengklik tautan di bawah ini.</p>
+        <p>Anda telah diundang untuk menjadi murid di Wisma Musik Rhapsodi. Silakan selesaikan pendaftaran Anda dengan mengklik tautan di bawah ini.</p>
         <a href="${registrationLink}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Selesaikan Pendaftaran</a>
         <p>Tautan ini hanya berlaku selama 24 jam.</p>
         <p>Jika Anda tidak merasa diundang, mohon abaikan email ini.</p>
       `,
     });
-    const fetch = await Student.create(newStudent);
 
-    return res.status(201).json({message: 'Murid berhasil ditambahkan.', student: fetch});
+    return res.status(201).json({message: 'Murid berhasil ditambahkan.', student: createdStudent});
   }catch(error){
+    console.error('Error adding student:', error); // Tambahkan log
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
   }
 }
@@ -178,6 +181,8 @@ exports.deleteStudent = async(req,res) => {
     }
 
     await Student.updateOne({_id: id}, {deletedAt: new Date()});
+
+    return res.status(200).json({message: 'Data murid berhasil dihapus.'});
   }catch(error){
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
   }
@@ -186,18 +191,36 @@ exports.deleteStudent = async(req,res) => {
 exports.updateStudent = async(req,res) => {
   try{
     const id = req.params.id;
+    // console.log(req.body);
     const findStudent = await Student.findById(id);
+    // console.log('findstudent',findStudent);
     if(!findStudent){
       return res.status(400).json({message: 'Data murid tidak ditemukan.'});
     }
+    
+    if (req.body.photo === '' && findStudent.photo) {
+      try {
+        await deleteFromGCS(findStudent.photo);
+      } catch (gcsError) {
+        console.error('Gagal menghapus foto lama dari GCS:', gcsError);
+        // Jangan hentikan update, mungkin file sudah tidak ada
+      }
+      if(req.body.photo){
+        const photoUrl = await uploadToGCS(req.file, 'students', findStudent.name);
+        req.body.photo = photoUrl;
+      }
+    }
+    // console.log('reqbody',req.body);
     await Student.updateOne({
       _id: id
     }, {
-      ...req.body
+      ...req.body,
+      updatedAt: new Date() // Selalu perbarui timestamp
     })
 
     return res.status(200).json({message: 'Data murid berhasil diperbarui.'});
   }catch(error){
+    console.error('Error updating student:', error); // Tambahkan log
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
   }
 }
@@ -238,3 +261,24 @@ exports.uploadTeacherPhoto = async (req, res) => {
     });
   }
 };
+
+exports.uploadStudentPhoto = async (req, res) => {
+  try{
+    const id = req.params.id;
+    const student = await Student.findById(id);
+    if(!student){
+      return res.status(400).json({message: 'Data murid tidak ditemukan.'});
+    }
+    if(!req.file){
+      return res.status(400).json({message: 'File foto tidak ditemukan.'});
+    }
+    if(student.photo){
+      await deleteFromGCS(student.photo);
+    }
+    const photoUrl = await uploadToGCS(req.file, 'students', student.name);
+    await Student.updateOne({_id: id}, {photo: photoUrl});
+    return res.status(200).json({message: 'Foto profil murid berhasil diupload.', photoUrl: photoUrl});
+  }catch(error){
+    return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
+  }
+}

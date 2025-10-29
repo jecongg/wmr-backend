@@ -1,7 +1,7 @@
 const multer = require('multer');
 const { Storage } = require('@google-cloud/storage');
 const path = require('path');
-const credentialGCS = require('../credentialGCS.json');
+const credentialGCS = require('../config/credentialGCS.json');
 
 const storage = new Storage({
   credentials: credentialGCS,
@@ -87,7 +87,7 @@ const deleteFromGCS = async (fileUrl) => {
     if (!fileName) return false;
 
     await bucket.file(fileName).delete();
-    console.log(`File ${fileName} berhasil dihapus dari GCS`);
+    // console.log(`File ${fileName} berhasil dihapus dari GCS`);
     return true;
   } catch (error) {
     console.error('Error deleting from GCS:', error);

@@ -1,73 +1,70 @@
-const Announcement = require('../models/announcement.model.js');
+const Announcement = require('../models/announcement.model');
 
-// Get all announcements
-exports.ListAnnouncements = async (req, res) => {
-    try {
-        const announcements = await Announcement.find().sort({ createdAt: -1 });
-        return res.status(200).json({
-            success: true,
-            data: announcements
-        });
-    } catch (error) {
-        console.error('Error fetching announcements:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Terjadi kesalahan pada server.'
-        });
-    }
-};
+const getUserIdFromRequest = (req) => req.user?._id;
+const getUserRoleFromRequest = (req) => req.user?.constructor.modelName; // 'Admin' atau 'Teacher'
 
-// Create new announcement
-exports.CreateAnnouncement = async (req, res) => {
+// Membuat pengumuman (bisa oleh Admin atau Guru)
+exports.createAnnouncement = async (req, res) => {
     try {
-        const { content } = req.body;
+        const createdById = getUserIdFromRequest(req);
+        const createdByType = getUserRoleFromRequest(req); // Mendapatkan 'Admin' atau 'Teacher'
         
-        if (!content || content.trim() === '') {
-            return res.status(400).json({
-                success: false,
-                message: 'Konten pengumuman tidak boleh kosong.'
-            });
+        const { title, content } = req.body;
+        
+        if (!title || !content) {
+            return res.status(400).json({ message: 'Judul dan konten tidak boleh kosong.' });
         }
 
-        const newAnnouncement = new Announcement({ content });
-        await newAnnouncement.save();
-
-        return res.status(201).json({
-            success: true,
-            message: 'Pengumuman berhasil dibuat.',
-            data: newAnnouncement
+        const newAnnouncement = await Announcement.create({
+            title,
+            content,
+            createdBy: createdById,
+            createdByType: createdByType
         });
+        
+        // Populate untuk response agar nama pembuatnya langsung ada
+        await newAnnouncement.populate('createdBy', 'name');
+
+        res.status(201).json({ message: 'Pengumuman berhasil dibuat.', data: newAnnouncement });
     } catch (error) {
         console.error('Error creating announcement:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Terjadi kesalahan pada server.'
-        });
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
 };
 
-// Delete announcement
-exports.DeleteAnnouncement = async (req, res) => {
+// Mendapatkan semua pengumuman
+exports.listAnnouncements = async (req, res) => {
     try {
+        const announcements = await Announcement.find()
+            .populate('createdBy', 'name') // Mengambil nama dari model Admin atau Teacher
+            .sort({ createdAt: -1 });
+        res.status(200).json(announcements);
+    } catch (error) {
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+    }
+};
+
+// Menghapus pengumuman
+exports.deleteAnnouncement = async (req, res) => {
+    try {
+        const userId = getUserIdFromRequest(req);
         const { id } = req.params;
-        const announcement = await Announcement.findByIdAndDelete(id);
+
+        const announcement = await Announcement.findById(id);
 
         if (!announcement) {
-            return res.status(404).json({
-                success: false,
-                message: 'Pengumuman tidak ditemukan.'
-            });
+            return res.status(404).json({ message: 'Pengumuman tidak ditemukan.' });
         }
 
-        return res.status(200).json({
-            success: true,
-            message: 'Pengumuman berhasil dihapus.'
-        });
+        // Cek apakah user yang menghapus adalah pembuatnya
+        if (announcement.createdBy.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'Anda tidak berhak menghapus pengumuman ini.' });
+        }
+
+        await Announcement.findByIdAndDelete(id);
+
+        res.status(200).json({ message: 'Pengumuman berhasil dihapus.' });
     } catch (error) {
-        console.error('Error deleting announcement:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Terjadi kesalahan pada server.'
-        });
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
 };
