@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const Teacher = require('../models/teacher.model'); // Path ke model Mongoose Teacher
 const Student = require('../models/student.model');
+const AssignMuridGuru = require('../models/assignMuridGuru.model');
 const { uploadToGCS, deleteFromGCS } = require('../utils/uploadToGCS');
 
 
@@ -282,3 +283,317 @@ exports.uploadStudentPhoto = async (req, res) => {
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
   }
 }
+exports.assignStudentToTeacher = async (req, res) => {
+  try {
+    const { teacherId, studentId, notes, startDate } = req.body;
+
+    // Validasi input
+    if (!teacherId || !studentId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Teacher ID dan Student ID harus diisi.' 
+      });
+    }
+
+    // Cek apakah teacher dan student ada
+    const teacher = await Teacher.findById(teacherId);
+    const student = await Student.findById(studentId);
+
+    if (!teacher) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Guru tidak ditemukan.' 
+      });
+    }
+
+    if (!student) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Murid tidak ditemukan.' 
+      });
+    }
+
+    // Cek apakah sudah ada assignment aktif
+    const existingAssignment = await AssignMuridGuru.findOne({
+      teacherId,
+      studentId,
+      status: 'active'
+    });
+
+    if (existingAssignment) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Murid sudah di-assign ke guru ini.' 
+      });
+    }
+
+    // Buat assignment baru
+    const assignment = new AssignMuridGuru({
+      teacherId,
+      studentId,
+      assignedBy: req.user.id, // Admin yang melakukan assign
+      notes,
+      startDate: startDate || Date.now(),
+      status: 'active'
+    });
+
+    await assignment.save();
+
+    // Populate data teacher dan student
+    await assignment.populate([
+      { path: 'teacherId', select: 'name email phone' },
+      { path: 'studentId', select: 'name email phone_number age' }
+    ]);
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Murid berhasil di-assign ke guru.',
+      data: assignment 
+    });
+
+  } catch (error) {
+    console.error('Error assign student to teacher:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan pada server.' 
+    });
+  }
+};
+
+exports.getAllAssignments = async (req, res) => {
+  try {
+    const { status, teacherId, studentId } = req.query;
+    
+    const filter = {};
+    
+    if (status) {
+      filter.status = status;
+    }
+    
+    if (teacherId) {
+      filter.teacherId = teacherId;
+    }
+    
+    if (studentId) {
+      filter.studentId = studentId;
+    }
+
+    const assignments = await AssignMuridGuru.find(filter)
+      .populate('teacherId', 'name email phone')
+      .populate('studentId', 'name email phone_number age')
+      .populate('assignedBy', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ 
+      success: true, 
+      count: assignments.length,
+      data: assignments 
+    });
+
+  } catch (error) {
+    console.error('Error get all assignments:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan pada server.' 
+    });
+  }
+};
+
+exports.updateAssignmentStatus = async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { status, endDate, notes } = req.body;
+
+    // Validasi status
+    const validStatuses = ['active', 'inactive', 'completed'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Status tidak valid. Pilih: active, inactive, atau completed.' 
+      });
+    }
+
+    const assignment = await AssignMuridGuru.findById(assignmentId);
+
+    if (!assignment) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Assignment tidak ditemukan.' 
+      });
+    }
+
+    // Update fields
+    if (status) {
+      assignment.status = status;
+    }
+    
+    if (endDate) {
+      assignment.endDate = endDate;
+    }
+    
+    if (notes !== undefined) {
+      assignment.notes = notes;
+    }
+
+    // Jika status diubah ke completed atau inactive, set endDate jika belum ada
+    if ((status === 'completed' || status === 'inactive') && !assignment.endDate) {
+      assignment.endDate = Date.now();
+    }
+
+    await assignment.save();
+
+    await assignment.populate([
+      { path: 'teacherId', select: 'name email phone' },
+      { path: 'studentId', select: 'name email phone_number age' }
+    ]);
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Assignment berhasil diupdate.',
+      data: assignment 
+    });
+
+  } catch (error) {
+    console.error('Error update assignment status:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan pada server.' 
+    });
+  }
+};
+
+
+exports.deleteAssignment = async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+
+    const assignment = await AssignMuridGuru.findById(assignmentId);
+
+    if (!assignment) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Assignment tidak ditemukan.' 
+      });
+    }
+
+    // Soft delete: ubah status menjadi inactive
+    assignment.status = 'inactive';
+    assignment.endDate = Date.now();
+    await assignment.save();
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Assignment berhasil dihapus (dinonaktifkan).' 
+    });
+
+  } catch (error) {
+    console.error('Error delete assignment:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan pada server.' 
+    });
+  }
+};
+
+// Hard delete assignment (permanent delete)
+exports.permanentDeleteAssignment = async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+
+    const assignment = await AssignMuridGuru.findByIdAndDelete(assignmentId);
+
+    if (!assignment) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Assignment tidak ditemukan.' 
+      });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Assignment berhasil dihapus permanen.' 
+    });
+
+  } catch (error) {
+    console.error('Error permanent delete assignment:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan pada server.' 
+    });
+  }
+};
+
+exports.getAssignmentById = async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+
+    const assignment = await AssignMuridGuru.findById(assignmentId)
+      .populate('teacherId', 'name email phone bio photo')
+      .populate('studentId', 'name email phone_number age address parent_name parent_phone')
+      .populate('assignedBy', 'name email');
+
+    if (!assignment) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Assignment tidak ditemukan.' 
+      });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      data: assignment 
+    });
+
+  } catch (error) {
+    console.error('Error get assignment by ID:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan pada server.' 
+    });
+  }
+};
+
+// Get statistics
+exports.getAssignmentStats = async (req, res) => {
+  try {
+    const totalAssignments = await AssignMuridGuru.countDocuments();
+    const activeAssignments = await AssignMuridGuru.countDocuments({ status: 'active' });
+    const inactiveAssignments = await AssignMuridGuru.countDocuments({ status: 'inactive' });
+    const completedAssignments = await AssignMuridGuru.countDocuments({ status: 'completed' });
+
+    // Get teachers with most students
+    const teachersWithStudentCount = await AssignMuridGuru.aggregate([
+      { $match: { status: 'active' } },
+      { $group: { _id: '$teacherId', studentCount: { $sum: 1 } } },
+      { $sort: { studentCount: -1 } },
+      { $limit: 5 }
+    ]);
+
+    // Populate teacher data
+    const topTeachers = await Teacher.populate(teachersWithStudentCount, { 
+      path: '_id', 
+      select: 'name email' 
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      data: {
+        total: totalAssignments,
+        active: activeAssignments,
+        inactive: inactiveAssignments,
+        completed: completedAssignments,
+        topTeachers: topTeachers.map(t => ({
+          teacher: t._id,
+          studentCount: t.studentCount
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('Error get assignment stats:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan pada server.' 
+    });
+  }
+};

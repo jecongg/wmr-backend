@@ -13,6 +13,7 @@ exports.authMiddleware = async (req, res, next) => {
   if (req.session && req.session.user) {
     try {
       const sessionUser = req.session.user;
+      // console.log('sessionUser', sessionUser);
       const models = { Admin, Teacher, Student };
       const role = sessionUser.role;
       const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
@@ -97,5 +98,17 @@ exports.isStudent = (req, res, next) => {
     next();
   } else {
     return res.status(403).json({ message: 'Akses ditolak. Hanya untuk murid.' });
+  }
+};
+
+/**
+ * Middleware untuk mengecek role Admin.
+ * Dijalankan SETELAH authMiddleware.
+ */
+exports.isAdmin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    return res.status(403).json({ message: 'Akses ditolak. Hanya untuk admin.' });
   }
 };
