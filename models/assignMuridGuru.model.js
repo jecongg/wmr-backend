@@ -25,10 +25,27 @@ const assignMuridGuruSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  scheduleDay: {
+    type: String,
+    enum: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'],
+    default: null
+  },
+  startTime: {
+    type: String,
+    default: null
+  },
+  endTime: {
+    type: String,
+    default: null 
+  },
+  instrument: {
+    type: String,
+    default: null
+  },
   notes: {
     type: String,
     default: null
-  }
+  },
 }, {
   timestamps: true,
   collection: 'assign_murid_guru', // Nama collection di MongoDB

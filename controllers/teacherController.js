@@ -23,6 +23,9 @@ exports.getStudentsByTeacher = async (req, res) => {
         assignmentId: assignment.id,
         student: assignment.studentId,
         startDate: assignment.startDate,
+        scheduleDay: assignment.scheduleDay,
+        startTime: assignment.startTime,
+        endTime: assignment.endTime,
         notes: assignment.notes,
         status: assignment.status
       }));

@@ -1,14 +1,23 @@
-const { authMiddleware } = require("../middleware/auth");
+const { authMiddleware, isTeacher } = require("../middleware/auth");
 const express = require('express');
 const { getStudentsByTeacher } = require('../controllers/teacherController');
+const studentAttendanceController = require('../controllers/studentAttendanceController');
 const router = express.Router();
 
-router.get('/my-students', authMiddleware, async (req, res) => {
+// Students routes
+router.get('/my-students', authMiddleware, isTeacher, async (req, res) => {
     req.params.teacherId = req.user.id;
     return getStudentsByTeacher(req, res);
-  });
+});
   
-  // Get students by specific teacher ID (Admin or Teacher)
 router.get('/:teacherId/students', authMiddleware, getStudentsByTeacher);
+
+// Attendance routes
+router.post('/attendance/create', authMiddleware, isTeacher, studentAttendanceController.createAttendance);
+router.get('/student/:studentId/attendances', authMiddleware, isTeacher, studentAttendanceController.getStudentAttendanceHistory);
+router.get('/attendance/:attendanceId', authMiddleware, isTeacher, studentAttendanceController.getAttendanceById);
+router.put('/attendance/:attendanceId', authMiddleware, isTeacher, studentAttendanceController.updateAttendance);
+router.delete('/attendance/:attendanceId', authMiddleware, isTeacher, studentAttendanceController.deleteAttendance);
+router.get('/attendances', authMiddleware, isTeacher, studentAttendanceController.getAllTeacherAttendances);
 
 module.exports = router;

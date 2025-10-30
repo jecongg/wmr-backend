@@ -285,7 +285,7 @@ exports.uploadStudentPhoto = async (req, res) => {
 }
 exports.assignStudentToTeacher = async (req, res) => {
   try {
-    const { teacherId, studentId, notes, startDate } = req.body;
+    const { teacherId, studentId, notes, startDate, scheduleDay, startTime, endTime, instrument } = req.body;
 
     // Validasi input
     if (!teacherId || !studentId) {
@@ -334,6 +334,10 @@ exports.assignStudentToTeacher = async (req, res) => {
       assignedBy: req.user.id, // Admin yang melakukan assign
       notes,
       startDate: startDate || Date.now(),
+      scheduleDay: scheduleDay || null,
+      startTime: startTime || null,
+      endTime: endTime || null,
+      instrument: instrument || null,
       status: 'active'
     });
 
@@ -402,7 +406,7 @@ exports.getAllAssignments = async (req, res) => {
 exports.updateAssignmentStatus = async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const { status, endDate, notes } = req.body;
+    const { status, endDate, notes, scheduleDay, startTime, endTime, instrument } = req.body;
 
     // Validasi status
     const validStatuses = ['active', 'inactive', 'completed'];
@@ -433,6 +437,22 @@ exports.updateAssignmentStatus = async (req, res) => {
     
     if (notes !== undefined) {
       assignment.notes = notes;
+    }
+    
+    if (scheduleDay !== undefined) {
+      assignment.scheduleDay = scheduleDay;
+    }
+    
+    if (startTime !== undefined) {
+      assignment.startTime = startTime;
+    }
+
+    if (endTime !== undefined) {
+      assignment.endTime = endTime;
+    }
+    
+    if (instrument !== undefined) {
+      assignment.instrument = instrument;
     }
 
     // Jika status diubah ke completed atau inactive, set endDate jika belum ada

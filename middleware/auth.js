@@ -112,3 +112,45 @@ exports.isAdmin = (req, res, next) => {
     return res.status(403).json({ message: 'Akses ditolak. Hanya untuk admin.' });
   }
 };
+
+/**
+ * Middleware khusus untuk memverifikasi HANYA menggunakan session.
+ * Tidak menerima Firebase token, hanya session cookie.
+ */
+exports.requireSession = async (req, res, next) => {
+  try {
+    if (!req.session || !req.session.user) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Sesi tidak valid. Silakan login kembali.' 
+      });
+    }
+
+    const sessionUser = req.session.user;
+    const models = { Admin, Teacher, Student };
+    const role = sessionUser.role;
+    const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
+    
+    let user = await Model.findById(sessionUser.id).select('-password');
+    
+    if (!user) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'User tidak ditemukan. Silakan login kembali.' 
+      });
+    }
+
+    const userObj = user.toJSON();
+    userObj.role = role;
+    req.user = userObj;
+    
+    return next();
+
+  } catch (error) {
+    console.error('Error verifikasi session:', error);
+    return res.status(401).json({ 
+      success: false,
+      message: 'Sesi tidak valid. Silakan login kembali.' 
+    });
+  }
+};
