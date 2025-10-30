@@ -51,10 +51,17 @@ exports.completeRegistration = async (req, res) => {
                         }
 
                         finalUid = existingUser.uid;
-                        await firebaseAdmin.auth().updateUser(finalUid, { password: password });
+                        await firebaseAdmin
+                            .auth()
+                            .updateUser(finalUid, { password: password });
                     } catch (lookupError) {
-                        console.error("Gagal mencari pengguna yang sudah ada di Firebase:", lookupError);
-                        throw new Error("Gagal memproses pendaftaran dengan email yang sudah ada.");
+                        console.error(
+                            "Gagal mencari pengguna yang sudah ada di Firebase:",
+                            lookupError
+                        );
+                        throw new Error(
+                            "Gagal memproses pendaftaran dengan email yang sudah ada."
+                        );
                     }
                 } else {
                     throw firebaseError;
@@ -63,7 +70,9 @@ exports.completeRegistration = async (req, res) => {
         }
 
         if (!finalUid) {
-            return res.status(400).json({ message: "UID pengguna tidak dapat ditentukan." });
+            return res
+                .status(400)
+                .json({ message: "UID pengguna tidak dapat ditentukan." });
         }
 
         user.status = "active";
@@ -75,50 +84,53 @@ exports.completeRegistration = async (req, res) => {
 
     } catch (error) {
         if (error instanceof jwt.TokenExpiredError) {
-            return res.status(400).json({ message: "Tautan pendaftaran sudah kedaluwarsa." });
+            return res
+                .status(400)
+                .json({ message: "Tautan pendaftaran sudah kedaluwarsa." });
         }
         if (error instanceof jwt.JsonWebTokenError) {
-            return res.status(400).json({ message: "Tautan pendaftaran tidak valid." });
+            return res
+                .status(400)
+                .json({ message: "Tautan pendaftaran tidak valid." });
         }
         console.error("Gagal menyelesaikan pendaftaran:", error);
         res.status(500).json({ message: "Terjadi kesalahan pada server." });
     }
 };
 
-
 exports.loginWithToken = async (req, res) => {
     const { idToken } = req.body;
-    
+
     if (!idToken) {
-        return res.status(400).json({ 
-            success: false, 
-            message: "ID Token diperlukan." 
+        return res.status(400).json({
+            success: false,
+            message: "ID Token diperlukan.",
         });
     }
-    
+
     try {
         const decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken);
         const uid = decodedToken.uid;
         const email = decodedToken.email;
-        
+
         if (!uid || !email) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Token tidak valid atau tidak mengandung UID/Email." 
+            return res.status(400).json({
+                success: false,
+                message: "Token tidak valid atau tidak mengandung UID/Email.",
             });
         }
         
 
         const authProvider = decodedToken.firebase.sign_in_provider;
-        
+
         const models = { Admin, Teacher, Student };
-        const roles = ['admin', 'teacher', 'student'];
+        const roles = ["admin", "teacher", "student"];
 
         for (const role of roles) {
             const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
             let userDoc = await Model.findOne({ authUid: uid });
             if (userDoc) {
-                const user = userDoc.toJSON(); 
+                const user = userDoc.toJSON();
                 user.role = role;
 
                 if(userDoc.status && userDoc.status === 'inactive') {
@@ -129,30 +141,31 @@ exports.loginWithToken = async (req, res) => {
                 }
                 
                 req.session.user = {
-                    id: user.id, 
+                    id: user.id,
                     email: user.email,
                     role: role,
-                    authUid: uid
+                    authUid: uid,
                 };
-                
+
                 return res.status(200).json({ success: true, user });
             }
         }
-        
+
         for (const role of roles) {
             const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
             let userDoc = await Model.findOne({ email: email });
             if (userDoc) {
                 if (userDoc.authUid && userDoc.authUid !== uid) {
-                    return res.status(403).json({ 
-                        success: false, 
-                        message: `Email ini sudah tertaut dengan akun ${role} lain.` 
+                    return res.status(403).json({
+                        success: false,
+                        message: `Email ini sudah tertaut dengan akun ${role} lain.`,
                     });
                 }
-                
+
                 if (!userDoc.authUid) {
                     userDoc.authUid = uid;
-                    userDoc.authProvider = authProvider === 'google.com' ? 'google' : 'email';
+                    userDoc.authProvider =
+                        authProvider === "google.com" ? "google" : "email";
                     await userDoc.save();
                 }
 
@@ -165,45 +178,49 @@ exports.loginWithToken = async (req, res) => {
                 
                 const user = userDoc.toJSON();
                 user.role = role;
-                
+
                 req.session.user = {
-                    id: user.id, 
+                    id: user.id,
                     email: user.email,
                     role: role,
-                    authUid: uid
+                    authUid: uid,
                 };
-                
-                return res.status(200).json({ 
-                    success: true, 
-                    user, 
-                    message: userDoc.authUid ? undefined : `Akun ${role} berhasil ditautkan.` 
+
+                return res.status(200).json({
+                    success: true,
+                    user,
+                    message: userDoc.authUid
+                        ? undefined
+                        : `Akun ${role} berhasil ditautkan.`,
                 });
             }
         }
-        
+
         return res.status(404).json({
             success: false,
             code: "email-not-registered",
             message: "Email tidak terdaftar di sistem kami.",
         });
-
     } catch (error) {
-        if (error.code === 'auth/id-token-expired') {
-            return res.status(401).json({ 
-                success: false, 
-                message: "Token sudah expired. Silakan login ulang." 
+        if (error.code === "auth/id-token-expired") {
+            return res.status(401).json({
+                success: false,
+                message: "Token sudah expired. Silakan login ulang.",
             });
         }
-        if (error.code === 'auth/argument-error' || error.code === 'auth/invalid-id-token') {
-            return res.status(401).json({ 
-                success: false, 
-                message: "Token tidak valid." 
+        if (
+            error.code === "auth/argument-error" ||
+            error.code === "auth/invalid-id-token"
+        ) {
+            return res.status(401).json({
+                success: false,
+                message: "Token tidak valid.",
             });
         }
         console.error("Error saat proses login dengan token:", error);
-        res.status(500).json({ 
-            success: false, 
-            message: "Terjadi kesalahan pada server." 
+        res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server.",
         });
     }
 };
@@ -215,60 +232,70 @@ exports.handleGoogleLogin = async (req, res) => {
     if (!uid || !email) {
         return res.status(400).json({ message: "UID dan Email diperlukan." });
     }
-    
+
     try {
         const models = { Admin, Teacher, Student };
-        const roles = ['admin', 'teacher', 'student'];
+        const roles = ["admin", "teacher", "student"];
 
         for (const role of roles) {
             const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
             let userDoc = await Model.findOne({ authUid: uid });
             if (userDoc) {
-                const user = userDoc.toJSON(); 
+                const user = userDoc.toJSON();
                 user.role = role;
-                
+
                 req.session.user = {
                     id: user.id,
                     email: user.email,
                     role: role,
-                    authUid: uid
+                    authUid: uid,
                 };
-                
+
                 return res.status(200).json({ success: true, user });
             }
         }
-        
+
         for (const role of roles) {
             const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
             let userDoc = await Model.findOne({ email: email });
             if (userDoc) {
                 if (userDoc.authUid) {
-                    return res.status(403).json({ success: false, message: `Email ini sudah tertaut dengan akun ${role} lain.` });
+                    return res
+                        .status(403)
+                        .json({
+                            success: false,
+                            message: `Email ini sudah tertaut dengan akun ${role} lain.`,
+                        });
                 }
                 userDoc.authUid = uid;
-                userDoc.authProvider = 'google';
+                userDoc.authProvider = "google";
                 await userDoc.save();
-                
+
                 const user = userDoc.toJSON();
                 user.role = role;
-                
+
                 req.session.user = {
                     id: user.id,
                     email: user.email,
                     role: role,
-                    authUid: uid
+                    authUid: uid,
                 };
-                
-                return res.status(200).json({ success: true, user, message: `Akun ${role} berhasil ditautkan.` });
+
+                return res
+                    .status(200)
+                    .json({
+                        success: true,
+                        user,
+                        message: `Akun ${role} berhasil ditautkan.`,
+                    });
             }
         }
-        
+
         return res.status(404).json({
             success: false,
             code: "email-not-registered",
             message: "Email tidak terdaftar di sistem kami.",
         });
-
     } catch (error) {
         console.error("Error saat proses Google login:", error);
         res.status(500).json({ message: "Terjadi kesalahan pada server." });
@@ -279,10 +306,14 @@ exports.logout = async (req, res) => {
     try {
         req.session.destroy((err) => {
             if (err) {
-                return res.status(500).json({ success: false, message: "Gagal logout." });
+                return res
+                    .status(500)
+                    .json({ success: false, message: "Gagal logout." });
             }
-            res.clearCookie('connect.sid'); 
-            return res.status(200).json({ success: true, message: "Logout berhasil." });
+            res.clearCookie("connect.sid");
+            return res
+                .status(200)
+                .json({ success: true, message: "Logout berhasil." });
         });
     } catch (error) {
         console.error("Error saat logout:", error);
@@ -296,17 +327,61 @@ exports.getSession = async (req, res) => {
             const models = { Admin, Teacher, Student };
             const role = req.session.user.role;
             const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
-            
-            const userDoc = await Model.findById(req.session.user.id).select('-password');
+
+            const userDoc = await Model.findById(req.session.user.id).select(
+                "-password"
+            );
             if (userDoc) {
                 const user = userDoc.toJSON();
                 user.role = role;
                 return res.status(200).json({ success: true, user });
             }
         }
-        return res.status(401).json({ success: false, message: "Tidak ada sesi aktif." });
+        return res
+            .status(401)
+            .json({ success: false, message: "Tidak ada sesi aktif." });
     } catch (error) {
         console.error("Error saat mengambil sesi:", error);
+        res.status(500).json({ message: "Terjadi kesalahan pada server." });
+    }
+};
+
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ message: "Email diperlukan." });
+        }
+
+        const models = [Admin, Teacher, Student];
+        let userExistsInDB = false;
+
+        for (const Model of models) {
+            const user = await Model.findOne({ email });
+            if (user) {
+                userExistsInDB = true;
+                break;
+            }
+        }
+
+        if (userExistsInDB) {
+            try {
+                await firebaseAdmin.auth().generatePasswordResetLink(email);
+            } catch (firebaseError) {
+                if (firebaseError.code === "auth/user-not-found") {
+                } else {
+                    throw firebaseError;
+                }
+            }
+        }
+
+        res.status(200).json({
+            message:
+                "Jika akun dengan email tersebut terdaftar, tautan untuk mereset password telah dikirim.",
+        });
+    } catch (error) {
+        console.error("Error pada proses lupa password:", error);
         res.status(500).json({ message: "Terjadi kesalahan pada server." });
     }
 };

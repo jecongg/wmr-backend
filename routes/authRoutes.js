@@ -14,4 +14,6 @@ router.post('/google-login-token', authController.handleGoogleLoginWithToken);
 router.post('/logout', authController.logout);
 router.get('/session', authController.getSession);
 
+router.post('/forgot-password', authController.forgotPassword);
+
 module.exports = router;
