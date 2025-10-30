@@ -84,7 +84,6 @@ exports.completeRegistration = async (req, res) => {
 
 exports.handleGoogleLogin = async (req, res) => {
     const { uid, email } = req.body;
-    console.log(uid);
     if (!uid || !email) {
         return res.status(400).json({ message: "UID dan Email diperlukan." });
     }
@@ -93,20 +92,25 @@ exports.handleGoogleLogin = async (req, res) => {
         const models = { Admin, Teacher, Student };
         const roles = ['admin', 'teacher', 'student'];
 
-        // Tahap 1: Cek berdasarkan UID (untuk pengguna yang kembali login)
         for (const role of roles) {
             const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
             let userDoc = await Model.findOne({ authUid: uid });
             if (userDoc) {
-                const user = userDoc.toJSON(); // Gunakan toJSON() untuk menerapkan transform
+                const user = userDoc.toJSON(); 
                 user.role = role;
-                console.log(user);
+                // console.log(user);
+                
+                req.session.user = {
+                    id: user.id,
+                    email: user.email,
+                    role: role,
+                    authUid: uid
+                };
                 
                 return res.status(200).json({ success: true, user });
             }
         }
         
-        // Tahap 2: Cek berdasarkan Email (untuk login pertama kali / penautan)
         for (const role of roles) {
             const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
             let userDoc = await Model.findOne({ email: email });
@@ -120,6 +124,15 @@ exports.handleGoogleLogin = async (req, res) => {
                 
                 const user = userDoc.toJSON();
                 user.role = role;
+                
+                // Set session cookie
+                req.session.user = {
+                    id: user.id,
+                    email: user.email,
+                    role: role,
+                    authUid: uid
+                };
+                
                 return res.status(200).json({ success: true, user, message: `Akun ${role} berhasil ditautkan.` });
             }
         }
@@ -132,6 +145,45 @@ exports.handleGoogleLogin = async (req, res) => {
 
     } catch (error) {
         console.error("Error saat proses Google login:", error);
+        res.status(500).json({ message: "Terjadi kesalahan pada server." });
+    }
+};
+
+// Logout handler
+exports.logout = async (req, res) => {
+    try {
+        req.session.destroy((err) => {
+            if (err) {
+                return res.status(500).json({ success: false, message: "Gagal logout." });
+            }
+            res.clearCookie('connect.sid'); 
+            return res.status(200).json({ success: true, message: "Logout berhasil." });
+        });
+    } catch (error) {
+        console.error("Error saat logout:", error);
+        res.status(500).json({ message: "Terjadi kesalahan pada server." });
+    }
+};
+
+// Get current session
+exports.getSession = async (req, res) => {
+    try {
+        if (req.session.user) {
+            // Fetch fresh user data from database
+            const models = { Admin, Teacher, Student };
+            const role = req.session.user.role;
+            const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
+            
+            const userDoc = await Model.findById(req.session.user.id).select('-password');
+            if (userDoc) {
+                const user = userDoc.toJSON();
+                user.role = role;
+                return res.status(200).json({ success: true, user });
+            }
+        }
+        return res.status(401).json({ success: false, message: "Tidak ada sesi aktif." });
+    } catch (error) {
+        console.error("Error saat mengambil sesi:", error);
         res.status(500).json({ message: "Terjadi kesalahan pada server." });
     }
 };
