@@ -5,6 +5,7 @@ const moduleSchema = new Schema({
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     teacher: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true },
+    student: { type: Schema.Types.ObjectId, ref: 'Student', required: true }, // Modul per murid
     category: { type: String, trim: true }, // Misal: Piano Grade 1, Teori Musik
     type: { type: String, enum: ['file', 'link', 'video'], required: true },
     url: { type: String, required: true }, // URL ke GCS, YouTube, atau link eksternal
