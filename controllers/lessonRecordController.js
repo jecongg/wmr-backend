@@ -2,7 +2,7 @@ const LessonRecord = require('../models/lessonRecord.model');
 const mongoose = require('mongoose');
 
 // Helper untuk mendapatkan ID pengguna dari request
-const getUserIdFromRequest = (req) => req.user?._id;
+const getUserIdFromRequest = (req) => req.user?.id;
 
 // Guru membuat atau memperbarui laporan les
 exports.createOrUpdateLessonRecord = async (req, res) => {
