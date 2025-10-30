@@ -39,4 +39,8 @@ const adminSchema = new mongoose.Schema(
     }
 );
 
+adminSchema.virtual('id').get(function() {
+    return this._id.toHexString();
+});
+
 module.exports = mongoose.model("Admin", adminSchema);

@@ -10,9 +10,20 @@ exports.completeRegistration = async (req, res) => {
     try {
         const decoded = jwt.verify(registrationToken, process.env.JWT_SECRET);
         
-        const teacher = await Teacher.findById(decoded.teacherId);
+        let user;
+        let userType;
+        
+        if (decoded.teacherId) {
+            user = await Teacher.findById(decoded.teacherId);
+            userType = "teacher";
+        } else if (decoded.studentId) {
+            user = await Student.findById(decoded.studentId);
+            userType = "student";
+        } else {
+            return res.status(400).json({ message: "Tautan pendaftaran tidak valid." });
+        }
 
-        if (!teacher || teacher.status !== "invited") {
+        if (!user || user.status !== "invited") {
             return res.status(400).json({ message: "Tautan pendaftaran tidak valid atau sudah digunakan." });
         }
 
@@ -21,19 +32,22 @@ exports.completeRegistration = async (req, res) => {
         if (authProvider === "email") {
             try {
                 const userRecord = await firebaseAdmin.auth().createUser({
-                    email: teacher.email,
+                    email: user.email,
                     password: password,
-                    displayName: teacher.name,
+                    displayName: user.name,
                 });
                 finalUid = userRecord.uid;
             } catch (firebaseError) {
                 if (firebaseError.code === "auth/email-already-exists") {
                     try {
-                        const existingUser = await firebaseAdmin.auth().getUserByEmail(teacher.email);
-                        const teacherWithThisUid = await Teacher.findOne({ authUid: existingUser.uid });
+                        const existingUser = await firebaseAdmin.auth().getUserByEmail(user.email);
+                        
+                        const Model = userType === "teacher" ? Teacher : Student;
+                        const userWithThisUid = await Model.findOne({ authUid: existingUser.uid });
 
-                        if (teacherWithThisUid && teacherWithThisUid._id.toString() !== teacher._id.toString()) {
-                            return res.status(400).json({ message: "Akun ini sudah terhubung dengan profil guru lain." });
+                        if (userWithThisUid && userWithThisUid._id.toString() !== user._id.toString()) {
+                            const userTypeLabel = userType === "teacher" ? "guru" : "murid";
+                            return res.status(400).json({ message: `Akun ini sudah terhubung dengan profil ${userTypeLabel} lain.` });
                         }
 
                         finalUid = existingUser.uid;
@@ -52,11 +66,11 @@ exports.completeRegistration = async (req, res) => {
             return res.status(400).json({ message: "UID pengguna tidak dapat ditentukan." });
         }
 
-
-        teacher.status = "active";
-        teacher.authProvider = authProvider;
-        teacher.authUid = finalUid;
-        await teacher.save(); 
+        user.status = "active";
+        user.authProvider = authProvider;
+        user.authUid = finalUid;
+        await user.save(); 
+        
         res.status(200).json({ message: "Pendaftaran berhasil! Anda sekarang bisa login." });
 
     } catch (error) {
@@ -93,6 +107,7 @@ exports.loginWithToken = async (req, res) => {
                 message: "Token tidak valid atau tidak mengandung UID/Email." 
             });
         }
+        
 
         const authProvider = decodedToken.firebase.sign_in_provider;
         
@@ -105,6 +120,13 @@ exports.loginWithToken = async (req, res) => {
             if (userDoc) {
                 const user = userDoc.toJSON(); 
                 user.role = role;
+
+                if(userDoc.status && userDoc.status === 'inactive') {
+                    return res.status(403).json({ 
+                        success: false,
+                        message: `Akun Anda berstatus '${userDoc.status}'. Silakan hubungi administrator.`
+                    });
+                }
                 
                 req.session.user = {
                     id: user.id, 
@@ -132,6 +154,13 @@ exports.loginWithToken = async (req, res) => {
                     userDoc.authUid = uid;
                     userDoc.authProvider = authProvider === 'google.com' ? 'google' : 'email';
                     await userDoc.save();
+                }
+
+                if(userDoc.status && userDoc.status === 'inactive') {
+                    return res.status(403).json({ 
+                        success: false, 
+                        message: `Akun Anda berstatus '${userDoc.status}'. Silakan hubungi administrator.`
+                    });
                 }
                 
                 const user = userDoc.toJSON();

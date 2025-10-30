@@ -7,6 +7,12 @@ const router = express.Router();
 // Students routes
 router.get('/:teacherId/students', authMiddleware, getStudentsByTeacher);
 
+
+router.get('/my-students', authMiddleware, isTeacher, async (req, res) => {
+    req.params.teacherId = req.user.id;
+    return getStudentsByTeacher(req, res);
+});
+
 // Attendance routes
 router.post('/attendance/create', authMiddleware, isTeacher, studentAttendanceController.createAttendance);
 router.get('/student/:studentId/attendances', authMiddleware, isTeacher, studentAttendanceController.getStudentAttendanceHistory);

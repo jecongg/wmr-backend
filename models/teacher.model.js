@@ -74,4 +74,9 @@ const teacherSchema = new mongoose.Schema({
   }
 });
 
+// Tambahkan virtual untuk 'id' yang mengacu ke _id
+teacherSchema.virtual('id').get(function() {
+  return this._id.toHexString();
+});
+
 module.exports = mongoose.model('Teacher', teacherSchema);

@@ -88,6 +88,7 @@ exports.listStudents = async(req,res) => {
     try{
       const fetchStudent = await Student.find();
       // console.log(fetchStudent);
+      // console.log(fetchStudent);
       return res.status(200).json( fetchStudent);
     }catch(error){
       return res.status(500).json({message: 'Terjadi kesalahan pada server.'});

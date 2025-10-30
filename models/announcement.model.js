@@ -13,4 +13,8 @@ const announcementSchema = new Schema({
     toObject: { virtuals: true }
 });
 
+announcementSchema.virtual('id').get(function() {
+    return this._id.toHexString();
+});
+
 module.exports = mongoose.model('Announcement', announcementSchema);
