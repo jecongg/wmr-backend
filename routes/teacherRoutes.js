@@ -5,11 +5,6 @@ const studentAttendanceController = require('../controllers/studentAttendanceCon
 const router = express.Router();
 
 // Students routes
-router.get('/my-students', authMiddleware, isTeacher, async (req, res) => {
-    req.params.teacherId = req.user.id;
-    return getStudentsByTeacher(req, res);
-});
-  
 router.get('/:teacherId/students', authMiddleware, getStudentsByTeacher);
 
 // Attendance routes
