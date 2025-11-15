@@ -4,6 +4,7 @@ const Teacher = require('../models/teacher.model'); // Path ke model Mongoose Te
 const Student = require('../models/student.model');
 const AssignMuridGuru = require('../models/assignMuridGuru.model');
 const { uploadToGCS, deleteFromGCS } = require('../utils/uploadToGCS');
+const socketService = require('../services/socketService');
 
 
 exports.listTeachers = async (req, res) => {
@@ -24,9 +25,17 @@ exports.updateTeacher = async (req, res) => {
     if(!findTeacher){
       return res.status(400).json({message: 'Data guru tidak ditemukan.'});
     }
+
+    const isBeingDeactivated = req.body.status === 'inactive' && findTeacher.status !== 'inactive';
+
     await Teacher.updateOne({_id: id}, {
       ...req.body
     })
+
+    if (isBeingDeactivated) {
+      socketService.forceLogoutUser(id, 'teacher', 'Akun Anda telah dinonaktifkan oleh administrator');
+    }
+
     return res.status(200).json({message: 'Data guru berhasil diperbarui.'});
   }catch(error){
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
@@ -87,8 +96,6 @@ exports.inviteTeacher = async (req, res) => {
 exports.listStudents = async(req,res) => {
     try{
       const fetchStudent = await Student.find();
-      // console.log(fetchStudent);
-      // console.log(fetchStudent);
       return res.status(200).json( fetchStudent);
     }catch(error){
       return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
@@ -111,6 +118,10 @@ exports.deleteTeacher = async(req,res) => {
     }
     // await Teacher.deleteOne({_id: id});
     await Teacher.updateOne({_id: id}, {deletedAt: new Date()});
+
+    // Force logout teacher if they're online
+    socketService.forceLogoutUser(id, 'teacher', 'Akun Anda telah dinonaktifkan oleh administrator');
+
     return res.status(200).json({message: 'Data guru berhasil dihapus.'});
   }catch(error){
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
@@ -121,7 +132,6 @@ exports.addStudent = async(req,res) => {
   try{
     const { email, name } = req.body;
 
-    // Cek duplikat email
     const existingStudent = await Student.findOne({ email, deletedAt: null });
     if (existingStudent) {
       return res.status(400).json({ message: 'Murid dengan email ini sudah ada.' });
@@ -130,7 +140,7 @@ exports.addStudent = async(req,res) => {
     const data = req.body;
     const newStudent = {
       ...data,
-      status: 'invited', // Set status awal
+      status: 'invited', 
       createdAt: new Date(),
       updatedAt: new Date(),
       deletedAt: null
@@ -169,7 +179,7 @@ exports.addStudent = async(req,res) => {
 
     return res.status(201).json({message: 'Murid berhasil ditambahkan.', student: createdStudent});
   }catch(error){
-    console.error('Error adding student:', error); // Tambahkan log
+    console.error('Error adding student:', error);
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
   }
 }
@@ -184,6 +194,9 @@ exports.deleteStudent = async(req,res) => {
 
     await Student.updateOne({_id: id}, {deletedAt: new Date()});
 
+    // Force logout student if they're online
+    socketService.forceLogoutUser(id, 'student', 'Akun Anda telah dinonaktifkan oleh administrator');
+
     return res.status(200).json({message: 'Data murid berhasil dihapus.'});
   }catch(error){
     return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
@@ -193,12 +206,13 @@ exports.deleteStudent = async(req,res) => {
 exports.updateStudent = async(req,res) => {
   try{
     const id = req.params.id;
-    // console.log(req.body);
     const findStudent = await Student.findById(id);
-    // console.log('findstudent',findStudent);
     if(!findStudent){
       return res.status(400).json({message: 'Data murid tidak ditemukan.'});
     }
+
+    // Check if status is being changed to inactive
+    const isBeingDeactivated = req.body.status === 'inactive' && findStudent.status !== 'inactive';
     
     if (req.body.photo === '' && findStudent.photo) {
       try {
@@ -212,13 +226,17 @@ exports.updateStudent = async(req,res) => {
         req.body.photo = photoUrl;
       }
     }
-    // console.log('reqbody',req.body);
     await Student.updateOne({
       _id: id
     }, {
       ...req.body,
       updatedAt: new Date() // Selalu perbarui timestamp
     })
+
+    // Force logout student if status changed to inactive
+    if (isBeingDeactivated) {
+      socketService.forceLogoutUser(id, 'student', 'Akun Anda telah dinonaktifkan oleh administrator');
+    }
 
     return res.status(200).json({message: 'Data murid berhasil diperbarui.'});
   }catch(error){
@@ -350,6 +368,18 @@ exports.assignStudentToTeacher = async (req, res) => {
       { path: 'studentId', select: 'name email phone_number age' }
     ]);
 
+    // Send real-time notification to teacher
+    socketService.emitToRoom(`teacher-${teacherId}`, 'student-assigned', {
+      assignment: assignment,
+      message: `Murid baru "${assignment.studentId.name}" telah di-assign kepada Anda`
+    });
+
+    // Send notification to admin room
+    socketService.emitToRoom('admin', 'assignment-created', {
+      assignment: assignment,
+      message: `Assignment baru telah dibuat`
+    });
+
     res.status(201).json({ 
       success: true, 
       message: 'Murid berhasil di-assign ke guru.',
@@ -468,6 +498,18 @@ exports.updateAssignmentStatus = async (req, res) => {
       { path: 'studentId', select: 'name email phone_number age' }
     ]);
 
+    // Send real-time notification to teacher about status change
+    socketService.emitToRoom(`teacher-${assignment.teacherId._id}`, 'assignment-updated', {
+      assignment: assignment,
+      message: `Status assignment untuk murid "${assignment.studentId.name}" telah diupdate`
+    });
+
+    // Send notification to admin room
+    socketService.emitToRoom('admin', 'assignment-updated', {
+      assignment: assignment,
+      message: `Assignment telah diupdate`
+    });
+
     res.status(200).json({ 
       success: true, 
       message: 'Assignment berhasil diupdate.',
@@ -501,6 +543,24 @@ exports.deleteAssignment = async (req, res) => {
     assignment.status = 'inactive';
     assignment.endDate = Date.now();
     await assignment.save();
+
+    // Populate untuk notifikasi
+    await assignment.populate([
+      { path: 'teacherId', select: 'name email phone' },
+      { path: 'studentId', select: 'name email phone_number age' }
+    ]);
+
+    // Send real-time notification to teacher
+    socketService.emitToRoom(`teacher-${assignment.teacherId._id}`, 'assignment-deleted', {
+      assignment: assignment,
+      message: `Assignment untuk murid "${assignment.studentId.name}" telah dinonaktifkan`
+    });
+
+    // Send notification to admin room
+    socketService.emitToRoom('admin', 'assignment-deleted', {
+      assignmentId: assignment._id,
+      message: `Assignment telah dihapus`
+    });
 
     res.status(200).json({ 
       success: true, 

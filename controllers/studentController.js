@@ -89,13 +89,11 @@ exports.getStudentScheduleForDay = async (req, res) => {
       const assignmentId = assignment._id.toString();
       
       if (skippedAssignments.has(assignmentId)) {
-        console.log('Skipping assignment (moved to another day):', assignmentId);
         continue;
       }
 
       const alreadyAdded = result.some(r => r.scheduleId.toString() === assignmentId);
       if (alreadyAdded) {
-        console.log('Assignment already added as reschedule:', assignmentId);
         continue;
       }
 

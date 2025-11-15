@@ -4,6 +4,8 @@ const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -16,8 +18,10 @@ const teacherRoute = require('./routes/teacherRoutes')
 const studentRoutes = require('./routes/studentRoutes')
 const assignmentRoutes = require('./routes/assignmentRoutes')
 const connectDB = require('./config/database');
+const socketService = require('./services/socketService');
 
 const app = express();
+const server = http.createServer(app);
 const credentialGCS = require('./config/credentialGCS.json');
 const { Storage } = require('@google-cloud/storage');
 const storage = new Storage({
@@ -26,6 +30,14 @@ const storage = new Storage({
 });
 
 connectDB();
+
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+    methods: ['GET', 'POST']
+  }
+});
 
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -60,8 +72,31 @@ app.use('/api/assignments', assignmentRoutes);
 app.get('/', (req, res) => {
   res.send('API Server Wisma Musik Rhapsodi is running!');
 });
+
+// Socket.IO Connection Handler
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  socket.on('join-room', (room) => {
+    socket.join(room);
+  });
+
+  socket.on('leave-room', (room) => {
+    socket.leave(room);
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+  });
+});
+
+socketService.initialize(io);
+
+app.set('io', io);
+
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server berjalan di port ${PORT}`);
+  console.log(`WebSocket server is ready`);
 });

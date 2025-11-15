@@ -6,7 +6,7 @@ const announcementSchema = new Schema({
     content: { type: String, required: true },
     // Dibuat oleh Admin atau Guru
     createdBy: { type: Schema.Types.ObjectId, required: true, refPath: 'createdByType' },
-    createdByType: { type: String, required: true, enum: ['Admin', 'Teacher'] },
+    // createdByType: { type: String, required: true, enum: ['Admin', 'Teacher'] },
 }, { 
     timestamps: true,
     toJSON: { virtuals: true },
