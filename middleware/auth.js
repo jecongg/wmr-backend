@@ -1,10 +1,11 @@
 const admin = require('../config/firebaseAdmin'); // Impor Firebase Admin yang sudah diinisialisasi
+const jwt = require('jsonwebtoken');
 const Teacher = require('../models/teacher.model'); // Sesuaikan path
 const Student = require('../models/student.model'); // Sesuaikan path
 const Admin = require('../models/admin.model');
 
 /**
- * Middleware untuk memverifikasi token JWT dari Firebase atau Session Cookie.
+ * Middleware untuk memverifikasi JWT token dari Cookie atau Session.
  */
 exports.authMiddleware = async (req, res, next) => {
   let token;
@@ -13,7 +14,6 @@ exports.authMiddleware = async (req, res, next) => {
   if (req.session && req.session.user) {
     try {
       const sessionUser = req.session.user;
-      // console.log('sessionUser', sessionUser);
       const models = { Admin, Teacher, Student };
       const role = sessionUser.role;
       const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
@@ -32,13 +32,51 @@ exports.authMiddleware = async (req, res, next) => {
     }
   }
 
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+  if (req.cookies && req.cookies.authToken) {
+    token = req.cookies.authToken;
+    
     try {
-      token = req.headers.authorization.split(' ')[1];
-
-      const decodedToken = await admin.auth().verifyIdToken(token);
+      const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
       
-      const authUid = decodedToken.uid; 
+      const models = { Admin, Teacher, Student };
+      const role = decodedToken.role;
+      const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
+      
+      let user = await Model.findById(decodedToken.id).select('-password');
+      
+      if (!user) {
+        return res.status(401).json({ message: 'Otentikasi gagal, pengguna tidak ditemukan.' });
+      }
+      
+      if (user.status && user.status === 'inactive') {
+        return res.status(403).json({ message: 'Akun Anda tidak aktif.' });
+      }
+      
+      const userObj = user.toJSON();
+      userObj.role = role;
+      req.user = userObj;
+      
+      authenticated = true;
+      return next();
+      
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        return res.status(401).json({ message: 'Token expired. Silakan login ulang.' });
+      }
+      if (error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ message: 'Token tidak valid.' });
+      }
+      console.error('Error verifikasi JWT token:', error);
+      return res.status(401).json({ message: 'Otentikasi gagal.' });
+    }
+  }
+
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+    
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const authUid = decodedToken.uid;
 
       let user = await Teacher.findOne({ authUid: authUid }).select('-password');
       let role = 'teacher';
@@ -59,10 +97,10 @@ exports.authMiddleware = async (req, res, next) => {
       
       const userObj = user.toJSON();
       userObj.role = role;
-      req.user = userObj; 
+      req.user = userObj;
 
       authenticated = true;
-      return next(); 
+      return next();
 
     } catch (error) {
       console.error('Error verifikasi token Firebase:', error);
@@ -75,11 +113,6 @@ exports.authMiddleware = async (req, res, next) => {
   }
 };
 
-/**
- * Middleware untuk mengecek role Guru.
- * Dijalankan SETELAH authMiddleware.
- * (TIDAK PERLU DIUBAH)
- */
 exports.isTeacher = (req, res, next) => {
   if (req.user && req.user.role === 'teacher') {
     next();
@@ -88,11 +121,7 @@ exports.isTeacher = (req, res, next) => {
   }
 };
 
-/**
- * Middleware untuk mengecek role Murid.
- * Dijalankan SETELAH authMiddleware.
- * (TIDAK PERLU DIUBAH)
- */
+
 exports.isStudent = (req, res, next) => {
   if (req.user && req.user.role === 'student') {
     next();

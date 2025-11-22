@@ -42,6 +42,10 @@ const studentSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  photo: {
+    type: String, 
+    default: null,
+  },
   status: {
     type: String,
     required: true,

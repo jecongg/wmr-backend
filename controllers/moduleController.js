@@ -1,36 +1,35 @@
 const Module = require('../models/module.model');
-// Asumsi Anda punya fungsi uploadToGCS dari kode sebelumnya
 const { uploadToGCS, deleteFromGCS } = require('../utils/uploadToGCS');
 
-const getUserIdFromRequest = (req) => req.user?._id;
-
-// Guru mengunggah modul baru
 exports.createModule = async (req, res) => {
     try {
-        const teacherId = getUserIdFromRequest(req);
+        const teacherId = req.user?.id || req.user?._id;
         if (!teacherId) return res.status(401).json({ message: 'Otentikasi gagal.' });
         
-        const { title, description, category, type, link } = req.body;
+        const { title, description, link} = req.body;
+        let type = req.body.type;
+        
+        
         let fileUrl = '';
         let fileName = '';
-
-        if (type === 'file' && req.file) {
+        
+        if (type === 'file' || type === 'video') {
+            if (!req.file) {
+                return res.status(400).json({ message: 'File tidak ditemukan.' });
+            }
             fileUrl = await uploadToGCS(req.file, 'modules', title);
             fileName = req.file.originalname;
-        } else if (type === 'link' || type === 'video') {
-            fileUrl = link;
-        } else {
-            return res.status(400).json({ message: 'Data tidak lengkap atau tipe modul tidak valid.' });
+        }else {
+            return res.status(400).json({ message: 'Tipe modul tidak valid.' });
         }
-
         const newModule = await Module.create({
             title,
             description,
-            category,
             type,
             url: fileUrl,
             fileName,
-            teacher: teacherId
+            teacher: teacherId,
+            student: req.body.student,
         });
 
         res.status(201).json({ message: 'Modul berhasil diunggah.', data: newModule });
@@ -43,9 +42,6 @@ exports.createModule = async (req, res) => {
 // Mendapatkan semua modul (bisa untuk murid atau guru)
 exports.listModules = async (req, res) => {
     try {
-        // Logika untuk murid: cari modul dari gurunya
-        // Logika untuk guru: cari modul miliknya
-        // Untuk sederhana, kita tampilkan semua dulu, bisa difilter di frontend
         const modules = await Module.find().populate('teacher', 'name').sort({ createdAt: -1 });
         res.status(200).json(modules);
     } catch (error) {
@@ -56,13 +52,12 @@ exports.listModules = async (req, res) => {
 // Guru menghapus modul
 exports.deleteModule = async (req, res) => {
     try {
-        const teacherId = getUserIdFromRequest(req);
+        const teacherId = req.user?.id || req.user?._id;
         const { id } = req.params;
 
         const module = await Module.findById(id);
         if (!module) return res.status(404).json({ message: 'Modul tidak ditemukan.' });
 
-        // Pastikan hanya pembuat modul yang bisa menghapus
         if (module.teacher.toString() !== teacherId.toString()) {
             return res.status(403).json({ message: 'Anda tidak punya akses untuk menghapus modul ini.' });
         }
@@ -77,3 +72,14 @@ exports.deleteModule = async (req, res) => {
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
 };
+
+exports.getStudentModules = async(req,res) => {
+    try{
+        const { id } = req.params;
+        const module = await Module.find({student: id});
+
+        return res.status(200).json(module);
+    }catch(err){
+        return res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+    }
+}

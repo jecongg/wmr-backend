@@ -12,7 +12,7 @@ exports.getAssignmentsByTeacher = async (req, res) => {
         const assignments = await AssignMuridGuru.find(filter)
             .populate({
                 path: 'studentId',
-                select: 'name email phone_number age address parent_name parent_phone'
+                select: 'name email phone_number age address parent_name parent_phone photo'
             })
             .sort({ createdAt: -1 });
 
@@ -27,7 +27,6 @@ exports.getAssignmentsByTeacher = async (req, res) => {
             notes: assignment.notes,
             status: assignment.status
         }));
-
         res.status(200).json({
             success: true,
             count: studentsData.length,

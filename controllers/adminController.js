@@ -250,34 +250,74 @@ exports.uploadTeacherPhoto = async (req, res) => {
   try {
     const id = req.params.id;
 
+    if (!id) {
+      return res.status(400).json({ message: 'ID guru tidak valid.' });
+    }
+
     const teacher = await Teacher.findById(id);
     if (!teacher) {
+      console.error('❌ Teacher not found:', id);
       return res.status(404).json({ message: 'Data guru tidak ditemukan.' });
     }
 
+    console.log('✅ Teacher found:', teacher.name);
+
     if (!req.file) {
-      return res.status(400).json({ message: 'File foto tidak ditemukan.' });
+      console.error('❌ No file in request');
+      return res.status(400).json({ message: 'File foto tidak ditemukan. Pastikan field name adalah "photo".' });
+    }
+
+    console.log('📄 File received:', {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+
+    if (req.file.size > 5 * 1024 * 1024) {
+      return res.status(400).json({ message: 'Ukuran file terlalu besar. Maksimal 5MB.' });
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ message: 'Tipe file tidak valid. Hanya jpeg, jpg, png, gif, webp yang diperbolehkan.' });
     }
 
     if (teacher.photo) {
-      await deleteFromGCS(teacher.photo);
+      console.log('🗑️ Deleting old photo:', teacher.photo);
+      try {
+        await deleteFromGCS(teacher.photo);
+        console.log('✅ Old photo deleted');
+      } catch (deleteError) {
+        console.warn('⚠️ Failed to delete old photo:', deleteError.message);
+        // Continue anyway
+      }
     }
 
+    // Upload foto baru
+    console.log('⬆️ Uploading new photo to GCS...');
     const photoUrl = await uploadToGCS(req.file, 'teachers', teacher.name);
+    console.log('✅ Photo uploaded:', photoUrl);
+
     await Teacher.updateOne(
       { _id: id },
-      { photo: photoUrl }
+      { photo: photoUrl, updatedAt: new Date() }
     );
+    console.log('✅ Database updated');
 
     return res.status(200).json({
+      success: true,
       message: 'Foto profil guru berhasil diupload.',
       photoUrl: photoUrl,
     });
   } catch (error) {
-    console.error('Error uploading teacher photo:', error);
+    console.error('❌ Error uploading teacher photo:', error);
+    console.error('Error stack:', error.stack);
     return res.status(500).json({
-      message: 'Terjadi kesalahan pada server.',
-      error: error.message,
+      success: false,
+      message: 'Terjadi kesalahan pada server saat upload foto.',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -285,21 +325,63 @@ exports.uploadTeacherPhoto = async (req, res) => {
 exports.uploadStudentPhoto = async (req, res) => {
   try{
     const id = req.params.id;
+    if (!id) {
+      return res.status(400).json({ message: 'ID murid tidak valid.' });
+    }
+
     const student = await Student.findById(id);
     if(!student){
-      return res.status(400).json({message: 'Data murid tidak ditemukan.'});
+      console.error('❌ Student not found:', id);
+      return res.status(404).json({message: 'Data murid tidak ditemukan.'});
     }
+
+
     if(!req.file){
-      return res.status(400).json({message: 'File foto tidak ditemukan.'});
+      console.error('❌ No file in request');
+      return res.status(400).json({message: 'File foto tidak ditemukan. Pastikan field name adalah "photo".'});
     }
+
+    console.log('📄 File received:', {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+
+    if (req.file.size > 5 * 1024 * 1024) {
+      return res.status(400).json({ message: 'Ukuran file terlalu besar. Maksimal 5MB.' });
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ message: 'Tipe file tidak valid. Hanya jpeg, jpg, png, gif, webp yang diperbolehkan.' });
+    }
+
     if(student.photo){
-      await deleteFromGCS(student.photo);
+      console.log('🗑️ Deleting old photo:', student.photo);
+      try {
+        await deleteFromGCS(student.photo);
+      } catch (deleteError) {
+        console.warn('⚠️ Failed to delete old photo:', deleteError.message);
+      }
     }
     const photoUrl = await uploadToGCS(req.file, 'students', student.name);
-    await Student.updateOne({_id: id}, {photo: photoUrl});
-    return res.status(200).json({message: 'Foto profil murid berhasil diupload.', photoUrl: photoUrl});
+    await Student.updateOne({_id: id}, {photo: photoUrl, updatedAt: new Date()});
+
+    return res.status(200).json({
+      success: true,
+      message: 'Foto profil murid berhasil diupload.', 
+      photoUrl: photoUrl
+    });
   }catch(error){
-    return res.status(500).json({message: 'Terjadi kesalahan pada server.'});
+    console.error('❌ Error uploading student photo:', error);
+    console.error('Error stack:', error.stack);
+    return res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan pada server saat upload foto.',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }
 exports.assignStudentToTeacher = async (req, res) => {

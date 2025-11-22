@@ -65,7 +65,6 @@ const assignMuridGuruSchema = new mongoose.Schema({
   }
 });
 
-// Index untuk mencegah duplikasi assignment yang aktif
 assignMuridGuruSchema.index({ teacherId: 1, studentId: 1, status: 1 });
 
 // Tambahkan virtual untuk 'id' yang mengacu ke _id
@@ -73,7 +72,6 @@ assignMuridGuruSchema.virtual('id').get(function() {
   return this._id.toHexString();
 });
 
-// Virtual untuk populate data teacher dan student
 assignMuridGuruSchema.virtual('teacher', {
   ref: 'Teacher',
   localField: 'teacherId',

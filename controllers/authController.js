@@ -4,6 +4,20 @@ const Admin = require("../models/admin.model");
 const Student = require("../models/student.model");
 const firebaseAdmin = require("../config/firebaseAdmin");
 
+const generateJWTToken = (user, role) => {
+    const payload = {
+        id: user._id || user.id,
+        email: user.email,
+        name: user.name,
+        role: role,
+        authUid: user.authUid
+    };
+    
+    return jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: '24h'
+    });
+};
+
 exports.completeRegistration = async (req, res) => {
     const { registrationToken, authProvider, password, firebaseUid } = req.body;
 
@@ -147,6 +161,14 @@ exports.loginWithToken = async (req, res) => {
                     authUid: uid,
                 };
 
+                const jwtToken = generateJWTToken(userDoc, role);
+                res.cookie('authToken', jwtToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    maxAge: 24 * 60 * 60 * 1000 
+                });
+
                 return res.status(200).json({ success: true, user });
             }
         }
@@ -185,6 +207,14 @@ exports.loginWithToken = async (req, res) => {
                     role: role,
                     authUid: uid,
                 };
+
+                const jwtToken = generateJWTToken(userDoc, role);
+                res.cookie('authToken', jwtToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    maxAge: 24 * 60 * 60 * 1000 
+                });
 
                 return res.status(200).json({
                     success: true,
@@ -251,6 +281,14 @@ exports.handleGoogleLogin = async (req, res) => {
                     authUid: uid,
                 };
 
+                const jwtToken = generateJWTToken(userDoc, role);
+                res.cookie('authToken', jwtToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    maxAge: 24 * 60 * 60 * 1000 
+                });
+
                 return res.status(200).json({ success: true, user });
             }
         }
@@ -281,6 +319,15 @@ exports.handleGoogleLogin = async (req, res) => {
                     authUid: uid,
                 };
 
+                // Generate JWT token and store in cookie
+                const jwtToken = generateJWTToken(userDoc, role);
+                res.cookie('authToken', jwtToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+                });
+
                 return res
                     .status(200)
                     .json({
@@ -302,6 +349,70 @@ exports.handleGoogleLogin = async (req, res) => {
     }
 };
 
+exports.setTokenCookie = async (req, res) => {
+    try {
+        const { idToken } = req.body;
+        
+        if (!idToken) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'ID Token diperlukan.' 
+            });
+        }
+
+        // Verify Firebase token
+        let decodedToken;
+        try {
+            decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken);
+        } catch (error) {
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Token tidak valid.' 
+            });
+        }
+
+        const uid = decodedToken.uid;
+        const email = decodedToken.email;
+
+        // Find user in MongoDB
+        const models = { Admin, Teacher, Student };
+        const roles = ["admin", "teacher", "student"];
+        
+        for (const role of roles) {
+            const Model = models[role.charAt(0).toUpperCase() + role.slice(1)];
+            let userDoc = await Model.findOne({ $or: [{ authUid: uid }, { email: email }] });
+            
+            if (userDoc) {
+                // Generate JWT token from MongoDB user
+                const jwtToken = generateJWTToken(userDoc, role);
+                
+                res.cookie('authToken', jwtToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+                });
+
+                return res.status(200).json({ 
+                    success: true, 
+                    message: 'Token berhasil disimpan.' 
+                });
+            }
+        }
+
+        return res.status(404).json({ 
+            success: false, 
+            message: 'User tidak ditemukan di database.' 
+        });
+    } catch (error) {
+        console.error('Error setting token cookie:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Terjadi kesalahan pada server.' 
+        });
+    }
+};
+
 exports.logout = async (req, res) => {
     try {
         req.session.destroy((err) => {
@@ -311,6 +422,7 @@ exports.logout = async (req, res) => {
                     .json({ success: false, message: "Gagal logout." });
             }
             res.clearCookie("connect.sid");
+            res.clearCookie("authToken");
             return res
                 .status(200)
                 .json({ success: true, message: "Logout berhasil." });

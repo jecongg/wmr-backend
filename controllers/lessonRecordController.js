@@ -1,10 +1,7 @@
 const LessonRecord = require('../models/lessonRecord.model');
 const mongoose = require('mongoose');
 
-// Helper untuk mendapatkan ID pengguna dari request
-const getUserIdFromRequest = (req) => req.user?.id;
 
-// Guru membuat atau memperbarui laporan les
 exports.createOrUpdateLessonRecord = async (req, res) => {
     try {
         const teacherId = getUserIdFromRequest(req);
@@ -12,12 +9,10 @@ exports.createOrUpdateLessonRecord = async (req, res) => {
 
         const { studentId, date, time, duration, type, status, materialsCovered, report, homework } = req.body;
         
-        // Validasi dasar
         if (!studentId || !date || !time || !status) {
             return res.status(400).json({ message: 'Data tidak lengkap.' });
         }
         
-        // Gunakan updateOne + upsert untuk efisiensi
         const result = await LessonRecord.updateOne(
             { teacher: teacherId, student: studentId, date: new Date(date) },
             { 
@@ -32,7 +27,6 @@ exports.createOrUpdateLessonRecord = async (req, res) => {
                     materialsCovered,
                     report,
                     homework
-                    // attachments akan dihandle terpisah jika ada upload file
                 }
             },
             { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -45,7 +39,6 @@ exports.createOrUpdateLessonRecord = async (req, res) => {
     }
 };
 
-// Guru/Admin mendapatkan semua laporan untuk satu murid
 exports.getRecordsForStudent = async (req, res) => {
     try {
         const { studentId } = req.params;
@@ -58,10 +51,9 @@ exports.getRecordsForStudent = async (req, res) => {
     }
 };
 
-// Murid mendapatkan riwayat laporannya sendiri
 exports.getStudentOwnHistory = async (req, res) => {
     try {
-        const studentId = getUserIdFromRequest(req);
+        const studentId = req.user?.id;
         if (!studentId) return res.status(401).json({ message: 'Otentikasi gagal.' });
 
         const records = await LessonRecord.find({ student: studentId })

@@ -37,7 +37,7 @@ class SocketService {
   emitToAll(event, data) {
     if (this.io) {
       this.io.emit(event, data);
-      console.log(`Emitted ${event} to all clients`);
+      // console.log(`Emitted ${event} to all clients`);
     }
   }
 

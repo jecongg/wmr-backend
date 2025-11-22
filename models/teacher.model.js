@@ -34,7 +34,7 @@ const teacherSchema = new mongoose.Schema({
     default: null,
   },
   photo: {
-    type: String, // URL ke foto
+    type: String,
     default: null,
   },
   hourlyRate: {

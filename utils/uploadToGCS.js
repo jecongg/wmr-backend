@@ -8,14 +8,17 @@ const storage = new Storage({
   projectId: 'wisma-rapsodi-musik',
 });
 
-const bucket = storage.bucket('wmr_profille_picture');
+const profileBucket = storage.bucket('wmr');
+
+const moduleBucket = storage.bucket('wmr');
 
 const multerStorage = multer.memoryStorage();
 
-const multerFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif|webp/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+const profilePictureFilter = (req, file, cb) => {
+  const allowedExtensions = /\.(jpg|jpeg|png|gif|webp)$/i;
+  const allowedMime = /^image\//;
+  const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedMime.test(file.mimetype);
 
   if (mimetype && extname) {
     return cb(null, true);
@@ -24,10 +27,30 @@ const multerFilter = (req, file, cb) => {
   }
 };
 
+const moduleFilter = (req, file, cb) => {
+  const allowedExtensions = /\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|ppt|pptx|mp4|mov|avi)$/i;
+  const allowedMime = /^(image\/|application\/pdf|application\/msword|application\/vnd\.|video\/)/;
+  const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedMime.test(file.mimetype);
+
+  // console.log('File extension:', path.extname(file.originalname).toLowerCase());
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Format file tidak didukung. Gunakan: gambar, PDF, dokumen Office, atau video!'));
+  }
+};
+
 const upload = multer({
   storage: multerStorage,
   limits: { fileSize: 5 * 1024 * 1024 }, 
-  fileFilter: multerFilter,
+  fileFilter: profilePictureFilter,
+});
+
+const uploadModule = multer({
+  storage: multerStorage,
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: moduleFilter,
 });
 
 
@@ -37,6 +60,8 @@ const uploadToGCS = async (file, folder, personName = null) => {
       reject(new Error('File tidak ditemukan'));
       return;
     }
+
+    const bucket = folder === 'modules' ? moduleBucket : profileBucket;
 
     const timestamp = Date.now();
     
@@ -83,11 +108,22 @@ const deleteFromGCS = async (fileUrl) => {
   try {
     if (!fileUrl) return false;
 
+    let bucket;
+    if (fileUrl.includes('wmr')) {
+      if (fileUrl.includes('/modules/')) {
+        bucket = moduleBucket;
+      } else {
+        bucket = profileBucket;
+      }
+    } else {
+      bucket = profileBucket; 
+    }
+
     const fileName = fileUrl.split(`${bucket.name}/`)[1];
     if (!fileName) return false;
 
     await bucket.file(fileName).delete();
-    // console.log(`File ${fileName} berhasil dihapus dari GCS`);
+    console.log(`File ${fileName} berhasil dihapus dari GCS`);
     return true;
   } catch (error) {
     console.error('Error deleting from GCS:', error);
@@ -97,6 +133,7 @@ const deleteFromGCS = async (fileUrl) => {
 
 module.exports = {
   upload,
+  uploadModule,
   uploadToGCS,
   deleteFromGCS,
 };

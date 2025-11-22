@@ -2,13 +2,13 @@ const express = require('express');
 const router = express.Router();
 const moduleCtrl = require('../controllers/moduleController');
 const { authMiddleware, isTeacher, isStudent } = require('../middleware/auth');
-const { upload } = require('../utils/uploadToGCS'); // Pastikan path ini benar
+const { uploadModule } = require('../utils/uploadToGCS'); 
 
-// Rute Guru
-router.post('/teacher/create', authMiddleware, isTeacher, upload.single('file'), moduleCtrl.createModule);
+router.post('/teacher/create', authMiddleware, uploadModule.single('file'), moduleCtrl.createModule);
 router.delete('/teacher/delete/:id', authMiddleware, isTeacher, moduleCtrl.deleteModule);
 
-// Rute Umum (bisa diakses guru dan murid)
 router.get('/', authMiddleware, moduleCtrl.listModules);
+
+router.get('/student/:id', authMiddleware, isTeacher, moduleCtrl.getStudentModules);
 
 module.exports = router;
