@@ -456,6 +456,12 @@ exports.assignStudentToTeacher = async (req, res) => {
       message: `Murid baru "${assignment.studentId.name}" telah di-assign kepada Anda`
     });
 
+    // Send notification to student
+    socketService.emitToRoom(`student-${assignment.studentId._id}`, 'student-assigned', {
+      assignment: assignment,
+      message: `Anda telah di-assign ke guru "${assignment.teacherId.name}"`
+    });
+
     // Send notification to admin room
     socketService.emitToRoom('admin', 'assignment-created', {
       assignment: assignment,
@@ -580,13 +586,16 @@ exports.updateAssignmentStatus = async (req, res) => {
       { path: 'studentId', select: 'name email phone_number age' }
     ]);
 
-    // Send real-time notification to teacher about status change
     socketService.emitToRoom(`teacher-${assignment.teacherId._id}`, 'assignment-updated', {
       assignment: assignment,
       message: `Status assignment untuk murid "${assignment.studentId.name}" telah diupdate`
     });
 
-    // Send notification to admin room
+    socketService.emitToRoom(`student-${assignment.studentId._id}`, 'assignment-updated', {
+      assignment: assignment,
+      message: `Assignment Anda telah diupdate`
+    });
+
     socketService.emitToRoom('admin', 'assignment-updated', {
       assignment: assignment,
       message: `Assignment telah diupdate`
@@ -636,6 +645,12 @@ exports.deleteAssignment = async (req, res) => {
     socketService.emitToRoom(`teacher-${assignment.teacherId._id}`, 'assignment-deleted', {
       assignment: assignment,
       message: `Assignment untuk murid "${assignment.studentId.name}" telah dinonaktifkan`
+    });
+
+    // Send notification to student
+    socketService.emitToRoom(`student-${assignment.studentId._id}`, 'assignment-removed', {
+      assignment: assignment,
+      message: `Assignment Anda telah dihapus`
     });
 
     // Send notification to admin room
@@ -760,3 +775,41 @@ exports.getAssignmentStats = async (req, res) => {
     });
   }
 };
+
+exports.updateAssignment = async(req,res) => {
+  try{
+    const { assignmentId } = req.params;
+    const updateData = req.body;
+
+    const assignment = await AssignMuridGuru.findByIdAndUpdate(assignmentId, updateData, { new: true })
+      .populate('teacherId', 'name email phone')
+      .populate('studentId', 'name email phone_number age');
+
+    if (!assignment) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Assignment tidak ditemukan.' 
+      });
+    }
+
+    socketService.emitToRoom(`teacher-${assignment.teacherId._id}`, 'assignment-updated', {
+      assignment: assignment,
+      message: `Assignment untuk murid "${assignment.studentId.name}" telah diperbarui`
+    });
+    socketService.emitToRoom(`student-${assignment.studentId._id}`, 'assignment-updated', {
+      assignment: assignment,
+      message: `Assignment Anda telah diperbarui`
+    });
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Assignment berhasil diperbarui.',
+      data: assignment 
+    });
+    
+  }catch(err){
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan pada server.' 
+    });
+  }
+}

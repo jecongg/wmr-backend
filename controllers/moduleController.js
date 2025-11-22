@@ -1,4 +1,5 @@
 const Module = require('../models/module.model');
+const socketService = require('../services/socketService');
 const { uploadToGCS, deleteFromGCS } = require('../utils/uploadToGCS');
 
 exports.createModule = async (req, res) => {
@@ -31,6 +32,8 @@ exports.createModule = async (req, res) => {
             teacher: teacherId,
             student: req.body.student,
         });
+
+        socketService.emitToAll('module-created', newModule);
 
         res.status(201).json({ message: 'Modul berhasil diunggah.', data: newModule });
     } catch (error) {
@@ -67,6 +70,9 @@ exports.deleteModule = async (req, res) => {
         }
 
         await Module.findByIdAndDelete(id);
+
+        socketService.emitToAll('module-deleted', { id });
+        
         res.status(200).json({ message: 'Modul berhasil dihapus.' });
     } catch (error) {
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });

@@ -24,6 +24,7 @@ router.get('/assignments', authMiddleware, isAdmin, adminController.getAllAssign
 router.get('/assignments/stats', authMiddleware, isAdmin, adminController.getAssignmentStats);
 router.get('/assignments/:assignmentId', authMiddleware, isAdmin, adminController.getAssignmentById);
 router.put('/assignments/:assignmentId/status', authMiddleware, isAdmin, adminController.updateAssignmentStatus);
+router.put('/assignments/:assignmentId', authMiddleware, isAdmin, adminController.updateAssignment);
 router.delete('/assignments/:assignmentId', authMiddleware, isAdmin, adminController.deleteAssignment);
 router.delete('/assignments/:assignmentId/permanent', authMiddleware, isAdmin, adminController.permanentDeleteAssignment);
 
