@@ -40,7 +40,12 @@ const io = new Server(server, {
 });
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  // Izinkan Frontend Production DAN Localhost sekaligus
+  origin: [
+    "https://wmr-frontend.vercel.app/", 
+    "http://localhost:5173",
+    "http://localhost:3000" // jaga-jaga kalau port localhost berubah
+  ],
   credentials: true
 }));
 
